@@ -1,0 +1,50 @@
+# 这是一个YAML格式的配置文件
+# -*- coding: utf-8 -*-
+"""
+存放所有可变的训练和模型参数。
+将配置与代码分离，可以让你在不修改任何代码的情况下，轻松地进行各种实验和调整。
+"""
+
+# 1. 模型架构相关参数
+model:
+  vision_model_name: "ViT-L/14"       # 使用的OpenCLIP视觉模型
+  text_model_name: "bert-base-uncased" # 使用的文本模型
+  mlp_hidden_dim: 512                # MLP预测头的隐藏层维度
+  # 定义所有预测头及其在损失函数中的权重
+  heads:
+    total_score: 0.5
+    composition: 0.1
+    color: 0.1
+    lighting: 0.1
+    subject_clarity: 0.05
+    creativity: 0.1
+    commercial_appeal: 0.05
+
+# 2. 训练流程相关参数
+training:
+  # 数据路径
+  train_data_path: "data/preferences_train.jsonl"
+  eval_data_path: "data/preferences_eval.jsonl"
+  
+  # 训练超参数
+  learning_rate: 1e-5
+  batch_size: 32
+  num_epochs: 5
+  optimizer: "AdamW"
+  
+  # 日志记录
+  use_wandb: true
+  wandb_project_name: "AestheticModel"
+
+# 3. 损失函数相关参数
+loss:
+  margin: 1.0 # 排序损失的间隔
+  # 损失权重，通常与 model.heads 中的权重保持一致
+  head_weights:
+    total_score: 0.5
+    composition: 0.1
+    color: 0.1
+    lighting: 0.1
+    subject_clarity: 0.05
+    creativity: 0.1
+    commercial_appeal: 0.05

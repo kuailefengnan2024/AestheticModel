@@ -1,0 +1,17 @@
+# 此文件用于声明项目的Python依赖库
+# 请根据实际使用的库，在此处添加具体的包名及其版本，例如：
+# torch==2.1.0
+# torchvision==0.16.0
+# transformers==4.35.0
+# open_clip_torch==2.20.0
+# pandas==2.1.3
+# pyyaml==6.0.1
+# wandb==0.16.0
+
+torch
+transformers
+open_clip_torch
+pandas
+pyyaml
+wandb
+tqdm
