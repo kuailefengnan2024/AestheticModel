@@ -14,7 +14,6 @@
 """
 import torch
 import torch.nn as nn
-import open_clip
 
 class AestheticModel(nn.Module):
     def __init__(self, config):
@@ -23,26 +22,13 @@ class AestheticModel(nn.Module):
 
         Args:
             config (object): 包含所有模型超参数的配置对象。
-                             例如: config.vision_model_name, config.pretrained
+                             例如: config.vision_model_name, config.text_model_name, config.mlp_hidden_dim, config.heads
         """
         super().__init__()
-        
-        # 1. 加载预训练的CLIP模型 (视觉和文本编码器会一并加载)
-        #    open_clip 会自动处理下载和缓存
-        model, _, preprocess = open_clip.create_model_and_transforms(
-            config.vision_model_name, 
-            pretrained=config.pretrained
-        )
-        
-        self.visual = model.visual
-        self.text = model.text # 使用CLIP自带的文本编码器
-        self.tokenizer = open_clip.get_tokenizer(config.vision_model_name)
-
-        # TODO: 2. 定义共享编码器的融合策略（如果需要）
-        #    - 例如，获取 embedding_dim
-        #    - embedding_dim = self.visual.output_dim 
-
-        # TODO: 3. 根据config中的定义，动态创建多个MLP预测头
+        # TODO: 1. 加载预训练的视觉模型 (e.g., OpenCLIP)
+        # TODO: 2. 加载预训练的文本模型 (e.g., BERT)
+        # TODO: 3. 定义共享编码器的融合策略（如果需要）
+        # TODO: 4. 根据config中的定义，动态创建多个MLP预测头
         pass
 
     def forward(self, image, text):

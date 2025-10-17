@@ -7,13 +7,8 @@
 
 # 1. 模型架构相关参数
 model:
-  # 使用 UGF/HF 上的 Chinese-CLIP 模型
-  # 可选项: "ViT-L-14", "ViT-H-14", "ViT-B-16"
-  vision_model_name: "ViT-L-14"
-  # 预训练权重来源, "laion-zh-58m" 是中文权重
-  pretrained: "laion-zh-58m"
-  # 文本模型由Chinese-CLIP自动处理，不再需要单独指定
-  # text_model_name: "bert-base-uncased" # <--- 删除或注释掉此行
+  vision_model_name: "ViT-L/14"       # 使用的OpenCLIP视觉模型
+  text_model_name: "bert-base-uncased" # 使用的文本模型
   mlp_hidden_dim: 512                # MLP预测头的隐藏层维度
   # 定义所有预测头及其在损失函数中的权重
   heads:
