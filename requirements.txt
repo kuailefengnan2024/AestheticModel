@@ -1,5 +1,4 @@
-# 此文件用于声明项目的Python依赖库
-# 请根据实际使用的库，在此处添加具体的包名及其版本，例如：
+﻿# 姝ゆ枃浠剁敤浜庡０鏄庨」鐩殑Python渚濊禆搴?# 璇锋牴鎹疄闄呬娇鐢ㄧ殑搴擄紝鍦ㄦ澶勬坊鍔犲叿浣撶殑鍖呭悕鍙婂叾鐗堟湰锛屼緥濡傦細
 # torch==2.1.0
 # torchvision==0.16.0
 # transformers==4.35.0
@@ -15,3 +14,8 @@ pandas
 pyyaml
 wandb
 tqdm
+openai
+loguru
+python-dotenv
+volcengine-python-sdk[ark]
+

@@ -1,0 +1,454 @@
+[33mcommit 69dbb54f4a3d433b1754b6514c1f9f570a63cf01[m
+Author: kuailefengnan2024 <han552401231@gmail.com>
+Date:   Fri Oct 17 21:23:28 2025 +0800
+
+    save
+
+[1mdiff --git a/.cursorignore b/.cursorignore[m
+[1mnew file mode 100644[m
+[1mindex 0000000..b021d93[m
+[1m--- /dev/null[m
+[1m+++ b/.cursorignore[m
+[36m@@ -0,0 +1,5 @@[m
+[32m+[m[32m# 如果之前有忽略所有 .env 文件[m
+[32m+[m[32m*.env[m
+[32m+[m
+[32m+[m[32m# 但不忽略根目录的 .env 文件[m
+[32m+[m[32m!/.env[m
+\ No newline at end of file[m
+[1mdiff --git a/README.md b/README.md[m
+[1mindex 7e4a8d0..a1a37e3 100644[m
+[1m--- a/README.md[m
+[1m+++ b/README.md[m
+[36m@@ -58,8 +58,10 @@[m [mAestheticModel/[m
+ ├── data_engine/               # 负责数据生产的独立模块 (对应Phase 1)[m
+ │   ├── __init__.py            # -> 使data_engine成为一个可导入的Python包[m
+ │   ├── generate_data.py       # -> 自动化生成成对偏好数据的核心脚本 (对应TODO 1.2)[m
+[31m-│   └── prompts/               # -> 存放用于引导VLM的Prompt模板[m
+[31m-│       └── judge_prompt.txt   # -> "裁判Prompt"，引导VLM输出结构化评分 (对应TODO 1.1)[m
+[32m+[m[32m│   ├── generate_prompts.py    # -> (新) 使用LLM批量生成图片描述提示词的脚本[m
+[32m+[m[32m│   └── prompts/               # -> 存放用于引导AI的Prompt模板[m
+[32m+[m[32m│       ├── judge_prompt.txt   # -> "裁判Prompt"，引导VLM输出结构化评分 (对应TODO 1.1)[m
+[32m+[m[32m│       └── image_prompt_generator.txt # -> (新) "元提示词"，用于引导LLM生成图片提示词[m
+ │[m
+ ├── scripts/                   # 存放模型训练与评估相关的可执行脚本 (对应Phase 3)[m
+ │   ├── train.py               # -> 启动模型训练的入口脚本 (对应TODO 3.1 & 3.3)[m
+[36m@@ -68,4 +70,18 @@[m [mAestheticModel/[m
+ ├── .gitignore                 # -> Git忽略文件配置[m
+ ├── README.md                  # -> 本文档[m
+ └── requirements.txt           # -> 项目所需的Python依赖库[m
+[32m+[m[32m```[m
+[32m+[m
+[32m+[m[32m### **5. API服务结构说明 (API Service Structure)**[m
+[32m+[m
+[32m+[m
+[32m+[m[32m```[m
+[32m+[m[32mapi/[m
+[32m+[m[32m├── vision/                    # -> 存放与核心视觉理解相关的API路由和逻辑[m
+[32m+[m[32m├── llm/                       # -> 存放与大型语言模型交互相关的API路由和逻辑[m
+[32m+[m[32m├── image/                     # -> 可能用于处理图片生成、获取等任务的API[m
+[32m+[m[32m├── edit/                      # -> 可能用于处理图片编辑、修改等任务的API[m
+[32m+[m[32m├── audit/                     # -> 存放用于内容审核、安全过滤相关的API和逻辑[m
+[32m+[m[32m├── base.py                    # -> 定义API服务共享的基类、数据模型(Pydantic)或通用工具函数[m
+[32m+[m[32m└── factory.py                 # -> 应用工厂，负责创建和配置Web应用实例(如FastAPI)，组装路由和中间件[m
+ ```[m
+\ No newline at end of file[m
+[1mdiff --git a/api/base.py b/api/base.py[m
+[1mnew file mode 100644[m
+[1mindex 0000000..76cd70f[m
+[1m--- /dev/null[m
+[1m+++ b/api/base.py[m
+[36m@@ -0,0 +1,126 @@[m
+[32m+[m[32m"""[m
+[32m+[m[32mAPI抽象基类定义模块[m
+[32m+[m
+[32m+[m[32m功能：定义统一的API接口规范，实现适配器模式的核心抽象层[m
+[32m+[m[32m角色：为不同厂商的API提供统一的接口标准，确保业务层代码与具体API实现解耦[m
+[32m+[m[32m架构：遵循依赖倒置原则，业务逻辑依赖抽象而非具体实现[m
+[32m+[m
+[32m+[m[32m包含三种核心API抽象：[m
+[32m+[m[32m- BaseLlmProvider: 大语言模型文本生成接口[m
+[32m+[m[32m- BaseImageProvider: AI图片生成接口[m
+[32m+[m[32m- BaseAuditProvider: 内容审核接口[m
+[32m+[m[32m"""[m
+[32m+[m
+[32m+[m[32mfrom abc import ABC, abstractmethod[m
+[32m+[m[32mfrom typing import Dict, Any, Tuple[m
+[32m+[m
+[32m+[m[32mfrom config import settings[m
+[32m+[m
+[32m+[m
+[32m+[m[32mclass BaseLlmProvider(ABC):[m
+[32m+[m[32m    """[m
+[32m+[m[32m    LLM API提供商的抽象基类。[m
+[32m+[m[32m    所有具体的LLM提供商都应从此类继承。[m
+[32m+[m[32m    """[m
+[32m+[m[32m    def __init__(self):[m
+[32m+[m[32m        """[m
+[32m+[m[32m        初始化基础属性，例如从全局配置中读取重试次数和延迟。[m
+[32m+[m[32m        """[m
+[32m+[m[32m        self.max_retries = settings.MAX_RETRIES[m
+[32m+[m[32m        self.retry_delay = settings.RETRY_DELAY[m
+[32m+[m
+[32m+[m[32m    @abstractmethod[m
+[32m+[m[32m    async def call_api(self, messages: list, **kwargs) -> Tuple[str | None, str | None]:[m
+[32m+[m[32m        """[m
+[32m+[m[32m        调用LLM API并返回文本响应。[m
+[32m+[m[41m        [m
+[32m+[m[32m        Args:[m
+[32m+[m[32m            messages (list): 一个遵循OpenAI格式的消息列表，例如:[m
+[32m+[m[32m                             [{"role": "system", "content": "You are a helpful assistant."},[m
+[32m+[m[32m                              {"role": "user", "content": "Hello!"}][m
+[32m+[m[32m            **kwargs: 传递给API客户端的其他参数。[m
+[32m+[m[41m        [m
+[32m+[m[32m        Returns:[m
+[32m+[m[32m            一个元组 (response_text, error_message)。[m
+[32m+[m[32m        """[m
+[32m+[m[32m        pass[m
+[32m+[m
+[32m+[m[32m    async def close(self):[m
+[32m+[m[32m        """可选的关闭或清理资源的方法。"""[m
+[32m+[m[32m        pass[m
+[32m+[m
+[32m+[m
+[32m+[m[32mclass BaseImageProvider(ABC):[m
+[32m+[m[32m    """[m
+[32m+[m[32m    图片生成提供商的抽象基类。[m
+[32m+[m[32m    """[m
+[32m+[m[32m    @abstractmethod[m
+[32m+[m[32m    async def call_api(self, prompt: str, **kwargs) -> Tuple[bytes | None, str | None]:[m
+[32m+[m[32m        """[m
+[32m+[m[32m        生成单张图片。[m
+[32m+[m
+[32m+[m[32m        Args:[m
+[32m+[m[32m            prompt (str): 用于生成图片的提示词。[m
+[32m+[m[32m            **kwargs: 其他可选参数（如size、quality等）[m
+[32m+[m
+[32m+[m[32m        Returns:[m
+[32m+[m[32m            一个元组 (image_bytes, error_message)。[m
+[32m+[m[32m            - 成功时, image_bytes 是图片的原始字节数据, error_message 为 None。[m
+[32m+[m[32m            - 失败时, image_bytes 为 None, error_message 包含错误描述。[m
+[32m+[m[32m        """[m
+[32m+[m[32m        raise NotImplementedError[m
+[32m+[m
+[32m+[m[32m    async def close(self):[m
+[32m+[m[32m        """可选的关闭或清理资源的方法。"""[m
+[32m+[m[32m        pass[m
+[32m+[m
+[32m+[m
+[32m+[m[32mclass BaseAuditProvider(ABC):[m
+[32m+[m[32m    """[m
+[32m+[m[32m    内容审核与视觉理解提供商的抽象基类。[m
+[32m+[m[32m    """[m
+[32m+[m[32m    @abstractmethod[m
+[32m+[m[32m    async def call_api(self, prompt_text: str, **kwargs) -> Tuple[str | None, str | None]:[m
+[32m+[m[32m        """[m
+[32m+[m[32m        调用视觉API的核心方法。[m
+[32m+[m
+[32m+[m[32m        Args:[m
+[32m+[m[32m            prompt_text (str): 发送给模型的用户文本提示。[m
+[32m+[m[32m            **kwargs: 其他可选的、特定于实现的参数 (如 predefined_messages)。[m
+[32m+[m
+[32m+[m[32m        Returns:[m
+[32m+[m[32m            一个元组 (content, error_message)。[m
+[32m+[m[32m            - 成功时, content 是API返回的文本内容, error_message 为 None。[m
+[32m+[m[32m            - 失败时, content 为 None, error_message 包含错误描述。[m
+[32m+[m[32m        """[m
+[32m+[m[32m        raise NotImplementedError[m
+[32m+[m
+[32m+[m[32m    async def close(self):[m
+[32m+[m[32m        """可选的关闭或清理资源的方法。"""[m
+[32m+[m[32m        pass[m
+[32m+[m
+[32m+[m
+[32m+[m[32mclass BaseImageEditorProvider(ABC):[m
+[32m+[m[32m    """[m
+[32m+[m[32m    图片编辑提供商的抽象基类。[m
+[32m+[m[32m    """[m
+[32m+[m[32m    @abstractmethod[m
+[32m+[m[32m    async def call_api(self, prompt: str, input_image_bytes: bytes, **kwargs) -> Tuple[bytes | None, str | None]:[m
+[32m+[m[32m        """[m
+[32m+[m[32m        根据文本指令编辑单张图片。[m
+[32m+[m
+[32m+[m[32m        Args:[m
+[32m+[m[32m            prompt (str): 用于编辑图片的文本指令。[m
+[32m+[m[32m            input_image_bytes (bytes): 需要被编辑的原始图片的字节数据。[m
+[32m+[m[32m            **kwargs: 其他可选参数[m
+[32m+[m
+[32m+[m[32m        Returns:[m
+[32m+[m[32m            一个元组 (output_image_bytes, error_message)。[m
+[32m+[m[32m            - 成功时, output_image_bytes 是编辑后图片的字节数据, error_message 为 None。[m
+[32m+[m[32m            - 失败时, output_image_bytes 为 None, error_message 包含错误描述。[m
+[32m+[m[32m        """[m
+[32m+[m[32m        raise NotImplementedError[m
+[32m+[m
+[32m+[m[32m    async def close(self):[m
+[32m+[m[32m        """可选的关闭或清理资源的方法。"""[m
+[32m+[m[32m        pass[m
+\ No newline at end of file[m
+[1mdiff --git a/api/edit/gpt_image_1.py b/api/edit/gpt_image_1.py[m
+[1mnew file mode 100644[m
+[1mindex 0000000..17a1eac[m
+[1m--- /dev/null[m
+[1m+++ b/api/edit/gpt_image_1.py[m
+[36m@@ -0,0 +1,84 @@[m
+[32m+[m[32mimport base64[m
+[32m+[m[32mimport uuid[m
+[32m+[m[32mimport json[m
+[32m+[m[32mfrom typing import Tuple[m
+[32m+[m
+[32m+[m[32mimport httpx[m
+[32m+[m[32mfrom api.base import BaseImageEditorProvider[m
+[32m+[m[32mfrom config import settings[m
+[32m+[m[32mfrom utils.logger import logger[m
+[32m+[m
+[32m+[m[32mclass GptImage1EditorProvider(BaseImageEditorProvider):[m
+[32m+[m[32m    """[m
+[32m+[m[32m    一个适配器，用于调用 gpt-image-1 模型来编辑图片。[m
+[32m+[m[32m    """[m
+[32m+[m[32m    def __init__(self, api_key: str, base_url: str, model: str, **kwargs):[m
+[32m+[m[32m        if not api_key:[m
+[32m+[m[32m            raise ValueError("API key for gpt-image-1 is required.")[m
+[32m+[m[41m        [m
+[32m+[m[32m        self.model = model[m
+[32m+[m[32m        self.api_key = api_key[m
+[32m+[m[32m        self.base_url = base_url[m
+[32m+[m[32m        self.client = httpx.AsyncClient()[m
+[32m+[m[32m        self.output_dir = settings.GENERATED_IMAGES_DIR[m
+[32m+[m[32m        self.output_dir.mkdir(parents=True, exist_ok=True)[m
+[32m+[m[32m        logger.info(f"GptImage1EditorProvider (httpx) initialized for model: {self.model}")[m
+[32m+[m
+[32m+[m[32m    async def call_api(self, prompt: str, input_image_bytes: bytes, **kwargs) -> Tuple[bytes | None, str | None]:[m
+[32m+[m[32m        """[m
+[32m+[m[32m        使用 httpx 以 multipart/form-data 格式调用 API 编辑图片，并返回字节流。[m
+[32m+[m[32m        """[m
+[32m+[m[32m        logger.info(f"Editing image with gpt-image-1 (multipart) for prompt: {prompt[:50]}...")[m
+[32m+[m[41m        [m
+[32m+[m[32m        # 1. 构造正确的图片编辑专用URL[m
+[32m+[m[32m        # 这是解决问题的关键：编辑功能需要一个特定的URL路径[m
+[32m+[m[32m        request_url = f"{self.base_url.rstrip('/')}/openai/images/edits?ak={self.api_key}"[m
+[32m+[m[41m        [m
+[32m+[m[32m        # 2. 准备 multipart/form-data[m
+[32m+[m[32m        # 修正：将所有参数都放入 files 中，以更精确地模拟表单提交[m
+[32m+[m[32m        # 这可以解决某些挑剔的API后端无法正确解析混合 data 和 files 的问题[m
+[32m+[m[32m        files = {[m
+[32m+[m[32m            'prompt': (None, prompt),[m
+[32m+[m[32m            'model': (None, self.model),[m
+[32m+[m[32m            'response_format': (None, 'b64_json'),[m
+[32m+[m[32m            'n': (None, str(kwargs.get("n", 1))),[m
+[32m+[m[32m            'size': (None, kwargs.get("size", "1024x1024")),[m
+[32m+[m[32m            'image[]': ("input_image.png", input_image_bytes, "image/png"),[m
+[32m+[m[32m        }[m
+[32m+[m
+[32m+[m[32m        try:[m
+[32m+[m[32m            # 3. 发送 multipart/form-data 请求[m
+[32m+[m[32m            response = await self.client.post(request_url, files=files, timeout=180)[m
+[32m+[m[32m            response.raise_for_status()[m
+[32m+[m[41m            [m
+[32m+[m[32m            # 关键调试步骤：尝试解析JSON，如果失败，则记录原始响应文本[m
+[32m+[m[32m            try:[m
+[32m+[m[32m                result = response.json()[m
+[32m+[m[32m            except json.JSONDecodeError:[m
+[32m+[m[32m                logger.error(f"API响应不是有效的JSON。状态码: {response.status_code}, 响应文本: {response.text}")[m
+[32m+[m[32m                return None, f"API response was not valid JSON. Raw text: {response.text}"[m
+[32m+[m
+[32m+[m[32m            if not result.get("data") or not result["data"][0].get("b64_json"):[m
+[32m+[m[32m                error_msg = result.get("error", {}).get("message", "API did not return image data.")[m
+[32m+[m[32m                raise ValueError(error_msg)[m
+[32m+[m
+[32m+[m[32m            # 4. 解码返回的Base64数据[m
+[32m+[m[32m            output_image_base64 = result["data"][0]["b64_json"][m
+[32m+[m[32m            output_image_bytes = base64.b64decode(output_image_base64)[m
+[32m+[m[41m            [m
+[32m+[m[32m            logger.info("Image edit data successfully received from gpt-image-1 API.")[m
+[32m+[m[32m            return output_image_bytes, None[m
+[32m+[m
+[32m+[m[32m        except httpx.HTTPStatusError as e:[m
+[32m+[m[32m            error_details = e.response.text[m
+[32m+[m[32m            logger.error(f"Error calling gpt-image-1 edit API (HTTP {e.response.status_code}): {error_details}")[m
+[32m+[m[32m            return None, f"HTTP {e.response.status_code} - {error_details}"[m
+[32m+[m[32m        except Exception as e:[m
+[32m+[m[32m            logger.error(f"Error processing gpt-image-1 edit response: {e}")[m
+[32m+[m[32m            return None, str(e)[m
+[32m+[m
+[32m+[m[32m    async def close(self):[m
+[32m+[m[32m        """关闭 httpx 客户端。"""[m
+[32m+[m[32m        if self.client:[m
+[32m+[m[32m            await self.client.aclose()[m
+[32m+[m[32m            logger.info("GptImage1EditorProvider (httpx) client closed.")[m
+[1mdiff --git a/api/factory.py b/api/factory.py[m
+[1mnew file mode 100644[m
+[1mindex 0000000..97f8756[m
+[1m--- /dev/null[m
+[1m+++ b/api/factory.py[m
+[36m@@ -0,0 +1,172 @@[m
+[32m+[m[32m"""[m
+[32m+[m[32mAPI客户端工厂[m
+[32m+[m
+[32m+[m[32m根据配置动态创建并返回相应的API客户端实例。[m
+[32m+[m[32m"""[m
+[32m+[m[32mfrom typing import Type[m
+[32m+[m
+[32m+[m[32mfrom .base import BaseLlmProvider, BaseImageProvider, BaseAuditProvider, BaseImageEditorProvider[m
+[32m+[m[32mfrom .llm.doubao15thinkpro import Doubao15ThinkproProvider[m
+[32m+[m[32mfrom .llm.openai import OpenAILLMProvider[m
+[32m+[m[32mfrom .llm.tuzi import TuziProvider[m
+[32m+[m[32mfrom .llm.gemini_2_5_pro import Gemini25ProProvider[m
+[32m+[m[32mfrom .vision.doubao_seed_vision import DoubaoSeedVisionProvider[m
+[32m+[m[32mfrom .vision.gemini_2_5_pro import Gemini25ProVisionProvider[m
+[32m+[m[32mfrom .image.seedream import SeedreamProvider[m
+[32m+[m[32mfrom .image.gpt_image_1 import GptImage1Provider[m
+[32m+[m[32mfrom .edit.gpt_image_1 import GptImage1EditorProvider[m
+[32m+[m
+[32m+[m[32mfrom config import settings[m
+[32m+[m[32mfrom utils.logger import logger[m
+[32m+[m
+[32m+[m[32mclass ApiClientFactory:[m
+[32m+[m[32m    """[m
+[32m+[m[32m    一个根据配置创建API客户端的工厂类。[m
+[32m+[m[32m    """[m
+[32m+[m[41m    [m
+[32m+[m[32m    # 注册表：将提供商名称映射到其实现类[m
+[32m+[m[32m    _llm_providers: dict[str, Type[BaseLlmProvider]] = {[m
+[32m+[m[32m        "doubao15thinkpro": Doubao15ThinkproProvider,[m
+[32m+[m[32m        "openai": OpenAILLMProvider,[m
+[32m+[m[32m        "tuzi": TuziProvider,[m
+[32m+[m[32m        "gemini_2_5_pro": Gemini25ProProvider,[m
+[32m+[m[32m    }[m
+[32m+[m[32m    _image_providers: dict[str, Type[BaseImageProvider]] = {[m
+[32m+[m[32m        "seedream": SeedreamProvider,[m
+[32m+[m[32m        "gpt_image_1": GptImage1Provider,[m
+[32m+[m[32m    }[m
+[32m+[m[32m    _vision_providers: dict[str, Type[BaseAuditProvider]] = {[m
+[32m+[m[32m        "doubao_seed_1_6_vision": DoubaoSeedVisionProvider,[m
+[32m+[m[32m        "gemini_2_5_pro": Gemini25ProVisionProvider,[m
+[32m+[m[32m    }[m
+[32m+[m[32m    _image_editor_providers: dict[str, Type[BaseImageEditorProvider]] = {[m
+[32m+[m[32m        "gpt_image_1": GptImage1EditorProvider,[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    @staticmethod[m
+[32m+[m[32m    def create_llm_client(provider_name: str) -> BaseLlmProvider | None:[m
+[32m+[m[32m        """[m
+[32m+[m[32m        根据指定的提供商名称创建并返回一个LLM API客户端实例。[m
+[32m+[m
+[32m+[m[32m        :param provider_name: 要创建的提供商名称 (例如, 'tuzi', 'ark')。[m
+[32m+[m[32m        :return: 一个遵循 BaseLlmProvider 接口的客户端实例，如果配置无效则返回None。[m
+[32m+[m[32m        """[m
+[32m+[m[32m        logger.info(f"请求创建LLM客户端，提供商: {provider_name}")[m
+[32m+[m
+[32m+[m[32m        provider_class = ApiClientFactory._llm_providers.get(provider_name)[m
+[32m+[m[32m        if not provider_class:[m
+[32m+[m[32m            logger.error(f"未知的LLM提供商: {provider_name}")[m
+[32m+[m[32m            raise ValueError(f"未知的LLM提供商: {provider_name}")[m
+[32m+[m
+[32m+[m[32m        try:[m
+[32m+[m[32m            provider_config = settings.LLM_API_CONFIGS.get(provider_name, {})[m
+[32m+[m[32m            return provider_class(**provider_config)[m
+[32m+[m[32m        except (ValueError, TypeError) as e:[m
+[32m+[m[32m            logger.error(f"创建LLM客户端 '{provider_name}' 时出错: {e}")[m
+[32m+[m[32m            return None[m
+[32m+[m
+[32m+[m[32m    @staticmethod[m
+[32m+[m[32m    def create_image_client() -> BaseImageProvider | None:[m
+[32m+[m[32m        """[m
+[32m+[m[32m        根据全局配置创建并返回一个图片生成API客户端实例。[m
+[32m+[m
+[32m+[m[32m        :return: 一个遵循 BaseImageProvider 接口的客户端实例，如果配置无效则返回None。[m
+[32m+[m[32m        """[m
+[32m+[m[32m        provider_name = settings.IMAGE_API_PROVIDER[m
+[32m+[m[32m        logger.info(f"根据配置创建图片生成客户端，提供商: {provider_name}")[m
+[32m+[m
+[32m+[m[32m        provider_class = ApiClientFactory._image_providers.get(provider_name)[m
+[32m+[m[32m        if not provider_class:[m
+[32m+[m[32m            logger.error(f"未知的图片生成提供商: {provider_name}")[m
+[32m+[m[32m            raise ValueError(f"未知的图片生成提供商: {provider_name}")[m
+[32m+[m
+[32m+[m[32m        try:[m
+[32m+[m[32m            provider_config = settings.IMAGE_API_CONFIGS.get(provider_name, {})[m
+[32m+[m[32m            return provider_class(**provider_config)[m
+[32m+[m[32m        except (ValueError, TypeError) as e:[m
+[32m+[m[32m            logger.error(f"创建图片生成客户端 '{provider_name}' 时出错: {e}")[m
+[32m+[m[32m            return None[m
+[32m+[m
+[32m+[m[32m    @staticmethod[m
+[32m+[m[32m    def create_vision_client() -> BaseAuditProvider | None:[m
+[32m+[m[32m        """[m
+[32m+[m[32m        根据全局配置创建并返回一个视觉理解API客户端实例。[m
+[32m+[m
+[32m+[m[32m        :return: 一个遵循 BaseAuditProvider 接口的客户端实例，如果配置无效则返回None。[m
+[32m+[m[32m        """[m
+[32m+[m[32m        provider_name = settings.VISION_API_PROVIDER[m
+[32m+[m[32m        logger.info(f"根据配置创建视觉理解客户端，提供商: {provider_name}")[m
+[32m+[m
+[32m+[m[32m        provider_class = ApiClientFactory._vision_providers.get(provider_name)[m
+[32m+[m[32m        if not provider_class:[m
+[32m+[m[32m            logger.error(f"未知的视觉理解提供商: {provider_name}")[m
+[32m+[m[32m            raise ValueError(f"未知的视觉理解提供商: {provider_name}")[m
+[32m+[m
+[32m+[m[32m        try:[m
+[32m+[m[32m            provider_config = settings.VISION_API_CONFIGS.get(provider_name, {})[m
+[32m+[m[32m            return provider_class(**provider_config)[m
+[32m+[m[32m        except (ValueError, TypeError) as e:[m
+[32m+[m[32m            logger.error(f"创建视觉理解客户端 '{provider_name}' 时出错: {e}")[m
+[32m+[m[32m            return None[m
+[32m+[m
+[32m+[m[32m    @staticmethod[m
+[32m+[m[32m    def create_image_editor_client() -> BaseImageEditorProvider | None:[m
+[32m+[m[32m        """[m
+[32m+[m[32m        根据全局配置创建并返回一个图片编辑API客户端实例。[m
+[32m+[m[32m        """[m
+[32m+[m[32m        provider_name = settings.IMAGE_EDITOR_API_PROVIDER[m
+[32m+[m[32m        logger.info(f"根据配置创建图片编辑客户端，提供商: {provider_name}")[m
+[32m+[m
+[32m+[m[32m        provider_class = ApiClientFactory._image_editor_providers.get(provider_name)[m
+[32m+[m[32m        if not provider_class:[m
+[32m+[m[32m            logger.error(f"未知的图片编辑提供商: {provider_name}")[m
+[32m+[m[32m            raise ValueError(f"未知的图片编辑提供商: {provider_name}")[m
+[32m+[m
+[32m+[m[32m        try:[m
+[32m+[m[32m            provider_config = settings.IMAGE_EDITOR_API_CONFIGS.get(provider_name, {})[m
+[32m+[m[32m            return provider_class(**provider_config)[m
+[32m+[m[32m        except (ValueError, TypeError) as e:[m
+[32m+[m[32m            logger.error(f"创建图片编辑客户端 '{provider_name}' 时出错: {e}")[m
+[32m+[m[32m            return None[m
+[32m+[m
+[32m+[m
+[32m+[m[32mdef get_llm_api(provider_name: str | None = None) -> BaseLlmProvider | None:[m
+[32m+[m[32m    """[m
+[32m+[m[32m    便捷函数：获取LLM API客户端实例。[m
+[32m+[m[41m    [m
+[32m+[m[32m    Args:[m
+[32m+[m[32m        provider_name (str, optional): 要使用的LLM提供商名称。如果为None，则使用默认设置。[m
+[32m+[m[41m    [m
+[32m+[m[32m    Returns:[m
+[32m+[m[32m        BaseLlmProvider | None: LLM API客户端实例，如果创建失败则返回None。[m
+[32m+[m[32m    """[m
+[32m+[m[32m    if provider_name is None:[m
+[32m+[m[32m        provider_name = settings.LLM_ROLES.get("default")[m
+[32m+[m[41m        [m
+[32m+[m[32m    return ApiClientFactory.create_llm_client(provider_name)[m
+[32m+[m
+[32m+[m
+[32m+[m[32mdef get_image_api() -> BaseImageProvider | None:[m
+[32m+[m[32m    """[m
+[32m+[m[32m    便捷函数：获取图片生成API客户端实例。[m
+[32m+[m[41m    [m
+[32m+[m[32m    Returns:[m
+[32m+[m[32m        BaseImageProvider | None: 图片生成API客户端实例，如果创建失败则返回None。[m
+[32m+[m[32m    """[m
+[32m+[m[32m    return ApiClientFactory.create_image_client()[m
+[32m+[m
+[32m+[m[32mdef get_vision_api() -> BaseAuditProvider | None:[m
+[32m+[m[32m    """[m
+[32m+[m[32m    便捷函数：获取视觉理解API客户端实例。[m
+[32m+[m[41m    [m
+[32m+[m[32m    Returns:[m
+[32m+[m[32m        BaseAuditProvider | None: 视觉理解API客户端实例，如果创建失败则返回None。[m
+[32m+[m[32m    """[m
+[32m+[m[32m    return ApiClientFactory.create_vision_client()[m
+[32m+[m
+[32m+[m
+[32m+[m[32mdef get_image_editor_api() -> BaseImageEditorProvider | None:[m
+[32m+[m[32m    """[m
+

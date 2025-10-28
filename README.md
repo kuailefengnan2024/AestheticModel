@@ -58,8 +58,10 @@ AestheticModel/
 ├── data_engine/               # 负责数据生产的独立模块 (对应Phase 1)
 │   ├── __init__.py            # -> 使data_engine成为一个可导入的Python包
 │   ├── generate_data.py       # -> 自动化生成成对偏好数据的核心脚本 (对应TODO 1.2)
-│   └── prompts/               # -> 存放用于引导VLM的Prompt模板
-│       └── judge_prompt.txt   # -> "裁判Prompt"，引导VLM输出结构化评分 (对应TODO 1.1)
+│   ├── generate_prompts.py    # -> (新) 使用LLM批量生成图片描述提示词的脚本
+│   └── prompts/               # -> 存放用于引导AI的Prompt模板
+│       ├── judge_prompt.txt   # -> "裁判Prompt"，引导VLM输出结构化评分 (对应TODO 1.1)
+│       └── image_prompt_generator.txt # -> (新) "元提示词"，用于引导LLM生成图片提示词
 │
 ├── scripts/                   # 存放模型训练与评估相关的可执行脚本 (对应Phase 3)
 │   ├── train.py               # -> 启动模型训练的入口脚本 (对应TODO 3.1 & 3.3)
@@ -68,4 +70,18 @@ AestheticModel/
 ├── .gitignore                 # -> Git忽略文件配置
 ├── README.md                  # -> 本文档
 └── requirements.txt           # -> 项目所需的Python依赖库
+```
+
+### **5. API服务结构说明 (API Service Structure)**
+
+
+```
+api/
+├── vision/                    # -> 存放与核心视觉理解相关的API路由和逻辑
+├── llm/                       # -> 存放与大型语言模型交互相关的API路由和逻辑
+├── image/                     # -> 可能用于处理图片生成、获取等任务的API
+├── edit/                      # -> 可能用于处理图片编辑、修改等任务的API
+├── audit/                     # -> 存放用于内容审核、安全过滤相关的API和逻辑
+├── base.py                    # -> 定义API服务共享的基类、数据模型(Pydantic)或通用工具函数
+└── factory.py                 # -> 应用工厂，负责创建和配置Web应用实例(如FastAPI)，组装路由和中间件
 ```
