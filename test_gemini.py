@@ -53,6 +53,8 @@ async def test_gemini_connection():
 
     except Exception as e:
         logger.error(f"测试过程中发生意外错误: {e}", exc_info=True)
+        import traceback
+        traceback.print_exc()
     finally:
         if provider:
             await provider.close()
