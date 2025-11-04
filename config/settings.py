@@ -88,8 +88,7 @@ LLM_API_CONFIGS = {
     "gemini_2_5_pro": {
         "model": "gemini-2.5-pro",
         "api_key": os.environ.get("GEMINI_25_API_KEY"),
-        "azure_endpoint": "https://search-va.byteintl.net/gpt/openapi/online/v2/crawl",
-        "api_version": "2024-03-01-preview"
+        "base_url": "https://genai-va-og.tiktok-row.org/gpt/openapi/online/v2/crawl/openai/deployments/gpt_openapi",
     }
 }
 
