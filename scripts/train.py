@@ -38,9 +38,9 @@ from torch.utils.data import DataLoader
 from torch.optim import AdamW
 
 # 从 aesthetic_model 包中导入核心组件
-from aesthetic_model.architecture import AestheticModel
-from aesthetic_model.dataset import PreferenceDataset
-from aesthetic_model.loss import CombinedRankingLoss
+from core.architecture import AestheticModel
+from core.dataset import PreferenceDataset
+from core.loss import CombinedRankingLoss
 
 def main(config_path):
     # 1. 加载配置

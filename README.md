@@ -1,5 +1,4 @@
 
-
 ### **项目：多维度审美评估模型 (AestheticModel)**
 
 #### **1. 项目目标 (Objective)**
@@ -17,7 +16,7 @@
 *   **训练方法:** **多任务学习 (Multi-Task Learning)**。通过一个统一的**组合排序损失函数 (Combined Ranking Loss)**，并行地训练模型在所有维度上的排序和打分能力。
 *   **数据处理策略：支持可变尺寸输入 (Data Strategy: Supporting Variable Image Sizes)**
     *   **原则:** 为确保模型能准确评估`构图`并具备强大的泛化能力，必须处理不同长宽比的图片，避免采用会破坏构图信息的中心裁剪或拉伸。
-    *   **实现:** 采用**动态填充 (Dynamic Padding)** 与 **注意力掩码 (Attention Mask)** 的先进方案。在数据加载流程 (`aesthetic_model/dataset.py`) 中：
+    *   **实现:** 采用**动态填充 (Dynamic Padding)** 与 **注意力掩码 (Attention Mask)** 的先进方案。在数据加载流程 (`core/dataset.py`) 中：
         1.  保持图片的原始长宽比进行缩放。
         2.  在组合批次（batching）时，将批内图片动态填充至统一尺寸。
         3.  生成注意力掩码，引导模型在计算时**完全忽略**填充区域，只关注真实的图像内容。
@@ -33,8 +32,8 @@
 
 #### **Phase 2: 模型构建 (Modeling)**
 
-*   **[ ] 2.1 架构定义:** 定义一个**多头输出 (Multi-Head)** 的模型。
-    *   **共享编码器 (Body):** 加载预训练的OpenCLIP（视觉）和BERT（文本）。
+*   **[x] 2.1 架构定义:** 定义一个**多头输出 (Multi-Head)** 的模型。
+    *   **共享编码器 (Body):** 加载预训练的OpenCLIP (ViT-L-14) 和 XLM-RoBERTa (多语言支持)。
     *   **独立输出头 (Heads):** 为“总分”和每一个评分维度分别创建一个独立的MLP预测头。
 *   **[ ] 2.2 损失函数:** 实现**组合排序损失**，将所有头的排序损失加权求和。
 
@@ -50,36 +49,40 @@
 
 ```
 AestheticModel/
-├── aesthetic_model/           # 核心模型Python包
-│   ├── __init__.py            # -> 包初始化文件，方便模块导入
-│   ├── architecture.py        # -> 定义模型的神经网络结构 (对应TODO 2.1)
-│   ├── dataset.py             # -> 定义PyTorch Dataset，用于加载成对偏好数据
-│   └── loss.py                # -> 实现组合排序损失函数 (对应TODO 2.2)
+├── api/                   # [通用工具层] 存放所有与外部AI服务(LLM, Vision, Image Gen)交互的客户端代码
+│   ├── vision/            # -> 视觉理解 API
+│   ├── llm/               # -> 语言模型 API
+│   ├── image/             # -> 图片生成 API
+│   └── ...                # -> 其他辅助 API 模块
 │
-├── configs/                   # 存放所有配置文件
-│   └── training_config.yaml   # -> 包含所有训练参数、模型超参数和文件路径等
+├── config/                # [配置中心]
+│   ├── settings.py        # -> 基础设施配置 (API Keys, 路径, 环境变量)
+│   └── training_config.yaml # -> 实验配置 (模型架构参数, 训练超参数, Loss权重)
 │
-├── data/                      # 存放最终生成的数据集 (被.gitignore忽略)
+├── core/                  # [核心模型层] (原 aesthetic_model) 包含模型的核心算法实现
+│   ├── __init__.py
+│   ├── architecture.py    # -> 定义神经网络结构 (OpenCLIP + XLM-R + MultiHead MLP)
+│   ├── dataset.py         # -> PyTorch Dataset, 处理成对数据加载与动态Padding
+│   └── loss.py            # -> 组合排序损失函数 (CombinedRankingLoss)
 │
-├── data_engine/               # 负责数据生产的独立模块 (对应Phase 1)
-│   ├── __init__.py            # -> 使data_engine成为一个可导入的Python包
-│   ├── generate_data.py       # -> 自动化生成成对偏好数据的核心脚本 (对应TODO 1.2)
-│   ├── generate_prompts.py    # -> (新) 使用LLM批量生成图片描述提示词的脚本
-│   └── prompts/               # -> 存放用于引导AI的Prompt模板
-│       ├── judge_prompt.txt   # -> "裁判Prompt"，引导VLM输出结构化评分 (对应TODO 1.1)
-│       └── image_prompt_generator.txt # -> (新) "元提示词"，用于引导LLM生成图片提示词
+├── data_pipeline/         # [数据流水线] (原 data_engine) 负责数据生产与预处理
+│   ├── generate_data.py   # -> 自动化生成成对偏好数据 (Prompt -> Gen -> VLM Judge)
+│   ├── generate_prompts.py# -> 批量生成高质量 Prompt
+│   └── prompts/           # -> 存放引导 AI 的 Prompt 模板 (裁判提示词, 生成提示词)
 │
-├── scripts/                   # 存放模型训练与评估相关的可执行脚本 (对应Phase 3)
-│   ├── train.py               # -> 启动模型训练的入口脚本 (对应TODO 3.1 & 3.3)
-│   └── evaluate.py            # -> 在独立测试集上评估模型性能的脚本 (对应TODO 3.2)
+├── scripts/               # [执行脚本层] 模型的训练、评估与推理入口
+│   ├── train.py           # -> 启动模型训练
+│   └── evaluate.py        # -> 模型效果评估
 │
-├── .gitignore                 # -> Git忽略文件配置
-├── README.md                  # -> 本文档
-└── requirements.txt           # -> 项目所需的Python依赖库
+├── data/                  # [数据存储] 存放数据集 (通常被 .gitignore 忽略)
+├── outputs/               # [产出物] 存放模型权重、日志、生成的图片样本
+├── README.md              # -> 本文档
+└── requirements.txt       # -> Python 依赖列表
 ```
 
 ### **5. API服务结构说明 (API Service Structure)**
 
+*(本目录主要包含封装好的第三方服务客户端，供 `data_pipeline` 调用)*
 
 ```
 api/
@@ -89,5 +92,5 @@ api/
 ├── edit/                      # -> 可能用于处理图片编辑、修改等任务的API
 ├── audit/                     # -> 存放用于内容审核、安全过滤相关的API和逻辑
 ├── base.py                    # -> 定义API服务共享的基类、数据模型(Pydantic)或通用工具函数
-└── factory.py                 # -> 应用工厂，负责创建和配置Web应用实例(如FastAPI)，组装路由和中间件
+└── factory.py                 # -> 应用工厂，负责创建和配置Web应用实例
 ```

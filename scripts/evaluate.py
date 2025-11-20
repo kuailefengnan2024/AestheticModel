@@ -35,8 +35,8 @@ import argparse
 import torch
 from torch.utils.data import DataLoader
 
-from aesthetic_model.architecture import AestheticModel
-from aesthetic_model.dataset import PreferenceDataset
+from core.architecture import AestheticModel
+from core.dataset import PreferenceDataset
 
 def main(args):
     # TODO: 1. 加载模型

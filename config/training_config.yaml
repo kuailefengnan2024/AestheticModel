@@ -7,18 +7,28 @@
 
 # 1. 模型架构相关参数
 model:
-  vision_model_name: "ViT-L/14"       # 使用的OpenCLIP视觉模型
-  text_model_name: "bert-base-uncased" # 使用的文本模型
-  mlp_hidden_dim: 512                # MLP预测头的隐藏层维度
+  # 视觉模型 (OpenCLIP)
+  # 使用基于 LAION-2B 数据集训练的 ViT-L-14，这是目前平衡了性能和开销的最佳选择之一
+  vision_model_name: "ViT-L-14"
+  vision_pretrained: "laion2b_s32b_b82k"
+  
+  # 文本模型 (HuggingFace Transformers)
+  # 使用 XLM-RoBERTa-Large，完美支持中英文混合，词表大，理解力强
+  text_model_name: "FacebookAI/xlm-roberta-large"
+  
+  # 特征融合与预测
+  projection_dim: 768     # 将视觉和文本特征投影到的统一维度
+  mlp_hidden_dim: 512     # MLP预测头的隐藏层维度
+  
   # 定义所有预测头及其在损失函数中的权重
   heads:
-    total_score: 0.5
-    composition: 0.1
-    color: 0.1
-    lighting: 0.1
-    subject_clarity: 0.05
-    creativity: 0.1
-    commercial_appeal: 0.05
+    total_score: 0.5        # 总分
+    composition: 0.1        # 构图
+    color: 0.1              # 色彩
+    lighting: 0.1           # 光影
+    subject_clarity: 0.05   # 主体清晰度
+    creativity: 0.1         # 创意度
+    commercial_appeal: 0.05 # 商业价值
 
 # 2. 训练流程相关参数
 training:
@@ -31,6 +41,10 @@ training:
   batch_size: 32
   num_epochs: 5
   optimizer: "AdamW"
+  
+  # 显存优化
+  mixed_precision: "fp16" # 可选: no, fp16, bf16
+  gradient_accumulation_steps: 1
   
   # 日志记录
   use_wandb: true
