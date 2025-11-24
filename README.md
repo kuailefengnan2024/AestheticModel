@@ -70,6 +70,11 @@ AestheticModel/
 │   ├── generate_prompts.py# -> 批量生成高质量 Prompt
 │   └── prompts/           # -> 存放引导 AI 的 Prompt 模板 (裁判提示词, 生成提示词)
 │
+├── crawlers/                  # [新增] 爬虫专用文件夹
+│   ├── __init__.py
+│   ├── base_crawler.py        # -> 爬虫基类 (处理通用的请求、重试、代理等)
+│   └── byteartist_crawler.py  # -> Byteartist 专用爬虫
+│
 ├── scripts/               # [执行脚本层] 模型的训练、评估与推理入口
 │   ├── train.py           # -> 启动模型训练
 │   └── evaluate.py        # -> 模型效果评估
