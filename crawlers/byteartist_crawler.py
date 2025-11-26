@@ -1,4 +1,10 @@
-from .base_crawler import BaseCrawler
+import sys
+import os
+
+# 允许直接运行此脚本
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from base_crawler import BaseCrawler
 from bs4 import BeautifulSoup
 import json
 import os
@@ -27,50 +33,47 @@ class ByteartistCrawler(BaseCrawler):
         
     def parse(self, response):
         """
-        这里是核心解析逻辑。
-        因为不知道 Byteartist 是 SSR (HTML) 还是 CSR (API)，
-        这里提供了两种模板。请你根据实际情况取消注释并修改。
+        核心解析逻辑 (根据用户提供的真实 JSON 结构适配)
+        结构: root -> data -> artworks -> [list] -> item['prompt']
         """
         prompts = []
         
-        # --- 情况 A: 网站是 API 驱动的 (返回 JSON) ---
         try:
-            # 尝试解析 JSON
-            # 注意：通常 API 返回的结构比较复杂，需要你打印 print(data) 来看结构
             data = response.json()
             
-            # 假设结构示例 (需要根据真实情况修改):
-            # data['data']['feed_list'] -> [item1, item2...]
-            # item['prompt'] -> "string"
+            # 1. 定位到列表
+            artworks = data.get('data', {}).get('artworks', [])
             
-            # 这是一个猜测的通用提取逻辑，你需要断点调试确认
-            if isinstance(data, dict):
-                # 尝试找常见的列表字段名
-                items = data.get('data', {}).get('list', []) or data.get('feed', []) or []
-                for item in items:
-                    # 尝试找 prompt 字段
-                    p = item.get('prompt') or item.get('text') or item.get('caption')
-                    if p:
-                        prompts.append(p)
+            if not artworks:
+                # 尝试兼容其他可能的字段名 (鲁棒性)
+                artworks = data.get('data', {}).get('list', []) or data.get('feed', [])
+                
+            # 2. 遍历提取 Prompt
+            for item in artworks:
+                # 优先取 'prompt' 字段
+                p = item.get('prompt')
+                
+                # 如果为空，尝试去 configs -> inputs 里面找 (有些复杂的结构藏在这里)
+                if not p:
+                    inputs = item.get('configs', {}).get('inputs', [])
+                    if isinstance(inputs, list):
+                        for inp in inputs:
+                            if inp.get('name') == 'prompt':
+                                p = inp.get('value')
+                                break
+                                
+                if p and isinstance(p, str) and len(p.strip()) > 0:
+                    prompts.append(p.strip())
                         
         except json.JSONDecodeError:
-            # 不是 JSON，那可能是 HTML
-            pass
+            print("Error: Response is not valid JSON.")
+        except Exception as e:
+            print(f"Error parsing JSON: {e}")
 
-        # --- 情况 B: 网站是静态 HTML ---
-        if not prompts:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # 示例：假设 Prompt 在 <div class="prompt-text"> 中
-            # 你需要按 F12 检查 Byteartist 的真实类名
-            # elements = soup.find_all('div', class_='prompt-text')
-            # for el in elements:
-            #     prompts.append(el.get_text(strip=True))
-            
         return prompts
 
     def run(self, pages=5):
-        print(f"Starting crawl for Byteartist (Internal)... Target pages: {pages}")
+        print(f"Starting crawl for Byteartist (Internal/POST)... Target pages: {pages}")
         
         if "这里粘贴" in COOKIE_STRING:
             print("ERROR: Please update the COOKIE_STRING in byteartist_crawler.py first!")
@@ -78,44 +81,69 @@ class ByteartistCrawler(BaseCrawler):
 
         all_prompts = set()
         
+        # 真实的 API 地址
+        target_url = "https://byteartist-api.bytedance.net/api/inference/artworks/queries"
+        
         for page in range(1, pages + 1):
-            # 构造 URL (需要你根据真实翻页规则修改)
-            # 假设 API 路径是 /api/feed/list ??? 需要抓包确认
-            # 暂时用首页 URL 代替
-            target_url = f"{self.base_url}/api/community/feed/list" # 猜测的 API 路径
+            print(f"Fetching page {page}...")
             
-            # 猜测的分页参数
-            params = {
-                "page": page,
-                "limit": 20,
-                "offset": (page-1)*20
+            # POST 请求体 (Payload) - 基于真实抓包数据
+            # 注意：真实 API 的 page_index 是从 0 开始的
+            payload = {
+                "ba_version": 2,
+                "page_index": page - 1,  # 循环是从1开始的，所以减1
+                "page_size": 20,         # 我们可以尝试改大一点，比如20
+                "inference_types": ["t2i", "i2i"],
+                "status": "completed",
+                "is_publish": True,      # 注意 Python 里是 True, JSON 里是 true
+                "sence": "smart_image"
             }
             
-            print(f"Fetching page {page}...")
-            response = self.fetch_page(target_url, params=params)
-            
-            if response:
-                # 调试用：如果是第一次跑，打印响应看看结构
-                if page == 1:
-                    print(f"DEBUG Response (First 500 chars): {response.text[:500]}")
+            try:
+                # 注意：这里改为 session.post
+                response = self.session.post(target_url, json=payload, timeout=15)
                 
+                # 检查状态码，如果是 403/401 说明 Cookie 失效或被封
+                if response.status_code != 200:
+                    print(f"  Error: Status Code {response.status_code}")
+                    # print(f"  Body: {response.text[:100]}") # 调试用
+                    # 遇到 403 直接退出，不要死磕
+                    if response.status_code in [401, 403]:
+                        print("  Cookie expired or Access Denied. Stopping.")
+                        break
+                
+                # 调试用：打印前200字符
+                if page == 1:
+                    print(f"DEBUG Response: {response.text[:200]}...")
+
                 page_prompts = self.parse(response)
                 if page_prompts:
                     print(f"  Found {len(page_prompts)} prompts.")
                     all_prompts.update(page_prompts)
                 else:
-                    print("  No prompts found. Check parsing logic or URL.")
+                    print("  No prompts found on this page. (Maybe end of list?)")
+                    # 如果连续 3 页都没数据，就可以提前退出了，省时间
+                    # 这里简单处理：如果一页一条都没抓到，且状态码是200，可能就是真没数据了
+                    if page > 10: # 前几页可能不稳定，10页以后如果空了就停
+                         print("  Empty page detected. Stopping crawl.")
+                         break
+                    
+            except Exception as e:
+                print(f"  Request failed: {e}")
             
             time.sleep(1)
 
-        # 保存结果
-        output_path = os.path.join(self.output_dir, "byteartist_prompts.txt")
+        # 保存结果 (使用 JSONL 格式，方便后续处理和分割)
+        output_path = os.path.join(self.output_dir, "byteartist_prompts.jsonl")
         with open(output_path, "w", encoding="utf-8") as f:
             for p in all_prompts:
-                f.write(p + "\n")
+                # 构造一个简单的字典对象
+                record = {"source": "byteartist", "prompt": p}
+                # 写入一行 JSON
+                f.write(json.dumps(record, ensure_ascii=False) + "\n")
                 
         print(f"Done! Saved {len(all_prompts)} unique prompts to {output_path}")
 
 if __name__ == "__main__":
     crawler = ByteartistCrawler()
-    crawler.run()
+    crawler.run(pages=500)
