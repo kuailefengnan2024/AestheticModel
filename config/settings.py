@@ -114,7 +114,9 @@ IMAGE_API_CONFIGS = {
     "gpt_image_1": {
         "model": "gpt-image-1",
         "api_key": os.environ.get("GPT_IMAGE_1_API_KEY"),
-        "base_url": "https://search-va.byteintl.net/gpt/openapi/online/v2/crawl",
+        "base_url": "https://genai-va-og.tiktok-row.org/gpt/openapi/online/v2/crawl/openai/images/generations",
+        "size": "1024x1024", # 支持 1024x1024, 1536x1024, 1024x1536, auto
+        "quality": "standard", # 支持 high, medium, low, auto
     }
 }
 

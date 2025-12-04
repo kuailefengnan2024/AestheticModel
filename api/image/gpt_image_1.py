@@ -19,7 +19,9 @@ class GptImage1Provider(BaseImageProvider):
         self.model = model
         self.api_key = api_key
         self.base_url = base_url
-        self.client = httpx.AsyncClient()
+        self.client = httpx.AsyncClient(verify=False)
+        self.default_size = kwargs.get("size", "1024x1024")
+        self.default_quality = kwargs.get("quality", "standard")
         self.output_dir = settings.GENERATED_IMAGES_DIR
         self.output_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f"GptImage1Provider (httpx) initialized for model: {self.model}")
@@ -31,6 +33,7 @@ class GptImage1Provider(BaseImageProvider):
         logger.info(f"Generating image with gpt-image-1 (httpx) for prompt: {prompt[:50]}...")
         
         # 1. 构造请求URL（带ak查询参数）
+        # 注意：base_url 已经在配置中包含了完整的路径，这里只需要追加参数
         request_url = f"{self.base_url}?ak={self.api_key}"
         
         # 2. 构造请求JSON体
@@ -38,13 +41,19 @@ class GptImage1Provider(BaseImageProvider):
             "model": self.model,
             "prompt": prompt,
             "n": kwargs.get("n", 1),
-            "size": kwargs.get("size", "1024x1024"),
-            "quality": kwargs.get("quality", "standard"),
+            "size": kwargs.get("size", self.default_size),
+            "quality": kwargs.get("quality", self.default_quality),
+        }
+
+        # 添加 X-TT-LOGID 方便排查问题
+        headers = {
+            "Content-Type": "application/json",
+            "X-TT-LOGID": str(uuid.uuid4())
         }
 
         try:
             # 3. 发送POST请求
-            response = await self.client.post(request_url, json=payload, timeout=120)
+            response = await self.client.post(request_url, json=payload, headers=headers, timeout=120)
             response.raise_for_status()
             
             result = response.json()
