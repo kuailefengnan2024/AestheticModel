@@ -33,6 +33,7 @@ class ApiClientFactory:
     }
     _image_providers: dict[str, Type[BaseImageProvider]] = {
         "seedream": SeedreamProvider,
+        "seedream_4_5": SeedreamProvider,
         "gpt_image_1": GptImage1Provider,
     }
     _vision_providers: dict[str, Type[BaseAuditProvider]] = {

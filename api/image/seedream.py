@@ -63,11 +63,19 @@ class SeedreamProvider(BaseImageProvider):
             "model": self.model,
             "prompt": prompt,
             "size": params.get("size", "1024x1024"),
-            "guidance_scale": params.get("guidance_scale", 5.0),
-            "seed": params.get("seed", int(time.time())),
             "response_format": response_format,
             "watermark": params.get("watermark", False)
         }
+        
+        # 只有在参数中明确提供了 guidance_scale 时才添加到 sdk_params
+        # 因为某些模型（如 seedream 4.5）不支持此参数
+        if "guidance_scale" in params:
+            sdk_params["guidance_scale"] = params["guidance_scale"]
+
+        # 只有在参数中明确提供了 seed 时才添加到 sdk_params
+        # 因为某些模型（如 seedream 4.5）不支持此参数
+        if "seed" in params:
+             sdk_params["seed"] = params["seed"]
 
         try:
             # 使用 asyncio.to_thread 将同步的SDK调用转为异步
