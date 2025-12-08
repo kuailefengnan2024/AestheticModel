@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 from pathlib import Path
 
 # 确保项目根目录在 Python 路径中
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dotenv import load_dotenv
 from api.image.gpt_image_1 import GptImage1Provider
@@ -81,8 +81,15 @@ async def test_gpt_image_generation():
         logger.info("Provider 初始化成功。")
 
         # 3. 定义测试提示词
-        prompt = "以抽象拼贴与网点半调构建“浮生若梦”的梦感风景，远景海岬与潟湖以钴蓝与荧黄大色块交错，滚刷质感沿海岸线撇扫，画面上方漂浮透明的倾斜手写体与粗网点形成叠影；主标题“浮生若梦”以超大号白色柔边字铺在上半部，微微模糊与拖影，叠加青蓝手写斜体“Non-geda”穿插其后；多组英文短句如“ENTROPY WRITES VERSES / PARTICLES COMPOSE”“GRAPHENE FOLDS INTO MOON LIGHT”“FRACTAL VEINS GROW INTO POEMS”以细衬线与小体量分散在中下部作为主题标签；角落处若干白色矩形干扰块制造信号故障感；色彩逻辑采用蓝—青—黄互补，光线如傍晚逆光，从右侧掠过增强层次；构图为俯视大远景与右高左低的海岸折线，标题跨层覆盖，次要信息避让主体笔触；负面约束：不使用真实品牌或地名，不用3D与摄影贴图，控制网点密度避免摩尔纹。ultra detailed, riso-style halftone dots, textured brushstrokes, flat collage layers, highly detailed texture, professional poster design"
-        logger.info(f"使用提示词: {prompt}")
+        # 从 tests/prompt 文件读取提示词
+        prompt_path = Path(__file__).parent / "prompt"
+        try:
+            with open(prompt_path, "r", encoding="utf-8") as f:
+                prompt = f.read().strip()
+            logger.info(f"已从文件读取提示词: {prompt[:50]}...")
+        except Exception as e:
+            logger.error(f"无法读取提示词文件 {prompt_path}: {e}")
+            return
         
         # 4. 调用 API
         # 支持的尺寸: "1024x1024", "1536x1024", "1024x1536"

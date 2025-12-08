@@ -119,3 +119,21 @@ api/
 *   **用法**:
     *   **筛选**: 给 4 张图，模型输出 4 个分，直接选分最高的。
     *   **注意**: 输出的分数不是 0-10 的绝对值，而是表示相对优劣的数值（越大越好）。
+
+{
+  "prompt": "一张暖色调的3D数字海报...",
+  
+  // 1. 明确指出谁是总分赢家，方便人类查阅
+  "image_winner_path": "outputs/raw/001_seed888_winner.png",
+  "image_loser_path":  "outputs/raw/001_seed222_loser.png",
+  
+  // 2. 具体的 Logits (分数)，用于训练
+  // 注意：这里隐含了 winner 的 total 分数一定 > loser 的 total 分数
+  "scores": {
+    "total":       {"winner": 8.5, "loser": 6.0}, 
+    
+    // 但是在子维度上，Loser 依然可以逆袭 (Feature Decoupling)
+    "composition": {"winner": 9.0, "loser": 5.0}, 
+    "color":       {"winner": 7.0, "loser": 8.0}  // <--- 看这里，Loser 色彩更好
+  }
+}

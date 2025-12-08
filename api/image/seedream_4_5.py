@@ -1,11 +1,11 @@
 """
-字节跳动即梦 图片生成API适配器
+字节跳动即梦 4.5 图片生成API适配器
 
-功能：封装字节跳动即梦系列模型的图片生成API调用，提供统一的图片生成接口
+功能：封装字节跳动即梦4.5模型的图片生成API调用，提供统一的图片生成接口
 角色：作为字节跳动图片生成服务的适配器，将即梦特定的API格式转换为项目统一接口
 架构：实现BaseImageProvider抽象基类，由ApiClientFactory进行创建。
 
-支持模型：jimeng-pro、jimeng-basic等
+支持模型：doubao-seedream-4-5-251128
 """
 import time
 from typing import Dict, Any
@@ -16,9 +16,14 @@ from volcenginesdkarkruntime import Ark
 from utils.logger import logger
 
 
-class SeedreamProvider(BaseImageProvider):
+class Seedream45Provider(BaseImageProvider):
     """
-    使用火山方舟SDK生成图片的具体实现。
+    使用火山方舟SDK生成图片 (Seedream 4.5 版本) 的具体实现。
+    
+    差异点:
+    - 不支持 seed 参数
+    - 不支持 guidance_scale 参数
+    - 尺寸参数通常为 "2048x2048" 等高分辨率
     """
 
     def __init__(self, model: str, api_key: str, base_url: str, **kwargs):
@@ -33,7 +38,7 @@ class SeedreamProvider(BaseImageProvider):
         self.client = Ark(base_url=base_url, api_key=api_key, timeout=120)
         self.model = model
         self.api_params = kwargs  # 存储其他可能的参数
-        logger.debug(f"SeedreamProvider已初始化，使用模型: {self.model}")
+        logger.debug(f"Seedream45Provider已初始化，使用模型: {self.model}")
 
     async def call_api(self, prompt: str, **kwargs) -> tuple[bytes | None, str | None]:
         """
@@ -41,7 +46,8 @@ class SeedreamProvider(BaseImageProvider):
 
         Args:
             prompt (str): 图片提示词。
-            **kwargs: 包含API所需参数的字典，如 size, guidance_scale, seed, response_format, watermark
+            **kwargs: 包含API所需参数的字典，如 size, response_format, watermark
+                      注意: 4.5版本会自动忽略 seed 和 guidance_scale 参数
 
         Returns:
             一个元组 (image_bytes, error_message)。
@@ -59,15 +65,24 @@ class SeedreamProvider(BaseImageProvider):
             response_format = "url"
 
         # 筛选出SDK支持的参数
+        # 注意：这里只包含 4.5 版本支持的参数
         sdk_params = {
             "model": self.model,
             "prompt": prompt,
-            "size": params.get("size", "1024x1024"),
-            "guidance_scale": params.get("guidance_scale", 5.0),
-            "seed": params.get("seed", int(time.time())),
+            "size": params.get("size", "2048x2048"),
             "response_format": response_format,
             "watermark": params.get("watermark", False)
         }
+        
+        # 记录忽略的参数，用于调试
+        ignored_params = []
+        if "seed" in params:
+            ignored_params.append("seed")
+        if "guidance_scale" in params:
+            ignored_params.append("guidance_scale")
+            
+        if ignored_params:
+            logger.debug(f"Seedream45Provider: 忽略了不支持的参数: {', '.join(ignored_params)}")
 
         try:
             # 使用 asyncio.to_thread 将同步的SDK调用转为异步
@@ -114,3 +129,4 @@ class SeedreamProvider(BaseImageProvider):
                 logger.error(f"Error closing Bytedance client: {e}")
             finally:
                 self.client = None
+

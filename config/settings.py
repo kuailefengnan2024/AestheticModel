@@ -114,7 +114,7 @@ IMAGE_API_CONFIGS = {
     "seedream_4_5": {
         "base_url": "https://ark.cn-beijing.volces.com/api/v3",
         "model": "doubao-seedream-4-5-251128",
-        "size": "2K",
+        "size": "2048x2048",
         "response_format": "url",
         "watermark": False,
         "api_key": os.environ.get("ARK_API_KEY")

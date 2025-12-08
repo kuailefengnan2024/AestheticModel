@@ -4,7 +4,7 @@ import sys
 from dotenv import load_dotenv
 
 # 确保项目根目录在 Python 路径中
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # 从 .env 文件加载环境变量
 load_dotenv()

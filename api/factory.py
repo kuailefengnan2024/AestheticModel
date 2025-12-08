@@ -10,9 +10,10 @@ from .llm.doubao15thinkpro import Doubao15ThinkproProvider
 from .llm.openai import OpenAILLMProvider
 from .llm.tuzi import TuziProvider
 from .llm.gemini_2_5_pro import Gemini25ProProvider
-from .vision.doubao_seed_vision import DoubaoSeedVisionProvider
+from .vision.doubao_seed_1_6_vision import DoubaoSeedVisionProvider
 from .vision.gemini_2_5_pro import Gemini25ProVisionProvider
 from .image.seedream import SeedreamProvider
+from .image.seedream_4_5 import Seedream45Provider
 from .image.gpt_image_1 import GptImage1Provider
 from .edit.gpt_image_1 import GptImage1EditorProvider
 
@@ -33,7 +34,7 @@ class ApiClientFactory:
     }
     _image_providers: dict[str, Type[BaseImageProvider]] = {
         "seedream": SeedreamProvider,
-        "seedream_4_5": SeedreamProvider,
+        "seedream_4_5": Seedream45Provider,
         "gpt_image_1": GptImage1Provider,
     }
     _vision_providers: dict[str, Type[BaseAuditProvider]] = {
