@@ -29,6 +29,11 @@ class GeminiImageProvider(BaseImageProvider):
         
         self.image_config = {
             "aspectRatio": kwargs.get("aspectRatio", "1:1"),
+            # 支持以下比例:
+            # Landscape: "21:9", "16:9", "4:3", "3:2"
+            # Square: "1:1"
+            # Portrait: "9:16", "3:4", "2:3"
+            # Flexible: "5:4", "4:5"
             "imageSize": kwargs.get("imageSize", "1K"),
             "imageOutputOptions": {
                 "mimeType": kwargs.get("mimeType", "image/png")
