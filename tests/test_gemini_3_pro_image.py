@@ -9,7 +9,7 @@ from pathlib import Path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dotenv import load_dotenv
-from api.image.gpt_image_1 import GptImage1Provider
+from api.image.gemini_3_pro_image import GeminiImageProvider
 from config.settings import IMAGE_API_CONFIGS, OUTPUTS_DIR
 from utils.logger import logger
 
@@ -45,39 +45,41 @@ def check_network_connectivity(url_str):
         logger.error(f"网络检查失败: {e}")
         return False
 
-async def test_gpt_image_generation():
+async def test_gemini_image_generation():
     """
-    一个简单的函数，用于测试与 GPT Image API 的连接和图像生成。
+    一个简单的函数，用于测试与 Gemini Image API 的连接和图像生成。
     """
-    logger.info("开始 GPT Image API 生成测试...")
+    logger.info("开始 Gemini Image API 生成测试...")
     provider = None
     try:
-        # 1. 从 settings.py 获取 GPT Image 的配置
-        gpt_image_config = IMAGE_API_CONFIGS.get("gpt_image_1")
-        if not gpt_image_config:
-            logger.error("在 config/settings.py 中未找到 GPT Image 的配置 'gpt_image_1'")
+        # 1. 从 settings.py 获取 Gemini Image 的配置
+        # 配置键名需要与 config/settings.py 中的一致
+        config_key = "gemini_3_pro_image" 
+        gemini_image_config = IMAGE_API_CONFIGS.get(config_key)
+        if not gemini_image_config:
+            logger.error(f"在 config/settings.py 中未找到 Gemini Image 的配置 '{config_key}'")
             return
 
         # 检查 API 密钥是否已加载
-        api_key = gpt_image_config.get("api_key")
+        api_key = gemini_image_config.get("api_key")
         if not api_key:
-            logger.error("未能加载 AZURE_OPENAI_API_KEY。请检查您的 .env 文件和 config/settings.py。")
+            logger.error("未能加载 API Key (使用了 AZURE_OPENAI_API_KEY)。请检查您的 .env 文件和 config/settings.py。")
             return
         
-        base_url = gpt_image_config.get("base_url")
+        base_url = gemini_image_config.get("base_url")
         if not base_url:
             logger.error("配置中缺少 base_url")
             return
 
-        logger.info(f"找到 GPT Image API Key: {api_key[:4]}...{api_key[-4:]}")
+        logger.info(f"找到 Gemini Image API Key: {api_key[:4]}...{api_key[-4:]}")
 
         # 0. 执行网络预检查
         if not check_network_connectivity(base_url):
             logger.warning("网络预检查失败，后续 API 调用可能会失败。")
         
         # 2. 初始化 provider
-        logger.info("正在初始化 GptImage1Provider...")
-        provider = GptImage1Provider(**gpt_image_config)
+        logger.info("正在初始化 GeminiImageProvider...")
+        provider = GeminiImageProvider(**gemini_image_config)
         logger.info("Provider 初始化成功。")
 
         # 3. 定义测试提示词
@@ -89,21 +91,22 @@ async def test_gpt_image_generation():
             logger.info(f"已从文件读取提示词: {prompt[:50]}...")
         except Exception as e:
             logger.error(f"无法读取提示词文件 {prompt_path}: {e}")
-            return
+            prompt = "生成一张柴犬的图片"
+            logger.info(f"使用默认提示词: {prompt}")
         
         # 4. 调用 API
-        # 支持的尺寸: "1024x1024", "1536x1024", "1024x1536"
-        target_size = "1024x1536" 
-        logger.info(f"正在调用 GPT Image API 生成图片 (尺寸: {target_size})...")
-        image_data, error = await provider.call_api(prompt, size=target_size)
+        logger.info(f"正在调用 Gemini Image API 生成图片...")
+        # Gemini 特有参数，可以在这里测试
+        # 例如: size="1K", aspectRatio="1:1", mimeType="image/png"
+        image_data, error = await provider.call_api(prompt, imageSize="1K", aspectRatio="1:1")
 
         if error:
-            logger.error(f"GPT Image API 调用失败，错误信息: {error}")
+            logger.error(f"Gemini Image API 调用失败，错误信息: {error}")
         elif image_data:
-            logger.success("GPT Image API 调用成功！收到图片数据。")
+            logger.success("Gemini Image API 调用成功！收到图片数据。")
             
             # 5. 保存图片
-            output_path = OUTPUTS_DIR / "test_gpt_image_output.png"
+            output_path = OUTPUTS_DIR / "test_gemini_image_output.png"
             
             # 确保输出目录存在
             output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -126,4 +129,5 @@ async def test_gpt_image_generation():
 
 if __name__ == "__main__":
     # 使用 asyncio.run() 来运行异步的主函数
-    asyncio.run(test_gpt_image_generation())
+    asyncio.run(test_gemini_image_generation())
+

@@ -87,7 +87,7 @@ LLM_API_CONFIGS = {
     },
     "gemini_2_5_pro": {
         "model": "gemini-2.5-pro",
-        "api_key": os.environ.get("GEMINI_25_API_KEY"),
+        "api_key": os.environ.get("AZURE_OPENAI_API_KEY"),
         "base_url": "https://genai-va-og.tiktok-row.org/gpt/openapi/online/v2/crawl/openai/deployments/gpt_openapi",
     }
 }
@@ -121,10 +121,18 @@ IMAGE_API_CONFIGS = {
     },
     "gpt_image_1": {
         "model": "gpt-image-1",
-        "api_key": os.environ.get("GPT_IMAGE_1_API_KEY"),
+        "api_key": os.environ.get("AZURE_OPENAI_API_KEY"),
         "base_url": "https://genai-va-og.tiktok-row.org/gpt/openapi/online/v2/crawl/openai/images/generations",
         "size": "1024x1024", # 支持 1024x1024, 1536x1024, 1024x1536, auto
         "quality": "standard", # 支持 high, medium, low, auto
+    },
+    "gemini_3_pro_image": {
+        "model": "gemini-3-pro-image-preview",
+        "api_key": os.environ.get("AZURE_OPENAI_API_KEY"),
+        "base_url": "https://genai-va-og.tiktok-row.org/gpt/openapi/online/multimodal/crawl/openai/deployments/gpt_openapi",
+        # 路径说明：
+        # 1. Cluster: 该模型属于 multimodal 集群，需使用 .../online/multimodal/crawl 路径 (区别于文本模型的 .../online/v2/crawl)。
+        # 2. Compatibility: 需保留 /openai/deployments/gpt_openapi 后缀，以适配网关的 OpenAI 兼容接口。
     }
 }
 
@@ -175,7 +183,7 @@ IMAGE_EDITOR_API_PROVIDER = "gpt_image_1"  # 当前唯一可选值: "gpt_image_1
 IMAGE_EDITOR_API_CONFIGS = {
     "gpt_image_1": {
         "model": "gpt-image-1",
-        "api_key": os.environ.get("GPT_IMAGE_1_API_KEY"),
+        "api_key": os.environ.get("AZURE_OPENAI_API_KEY"),
         "base_url": "https://search-va.byteintl.net/gpt/openapi/online/v2/crawl", # 假设与生成使用相同的基础端点
     }
 }

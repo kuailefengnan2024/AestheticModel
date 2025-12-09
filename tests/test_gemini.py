@@ -29,7 +29,7 @@ async def test_gemini_connection():
         # 检查 API 密钥是否已加载
         api_key = gemini_config.get("api_key")
         if not api_key:
-            logger.error("未能加载 GEMINI_25_API_KEY。请检查您的 .env 文件和 config/settings.py。")
+            logger.error("未能加载 AZURE_OPENAI_API_KEY。请检查您的 .env 文件和 config/settings.py。")
             return
         
         logger.info(f"找到 Gemini API Key: {api_key[:4]}...{api_key[-4:]}")

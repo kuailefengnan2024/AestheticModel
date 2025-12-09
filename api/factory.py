@@ -15,6 +15,7 @@ from .vision.gemini_2_5_pro import Gemini25ProVisionProvider
 from .image.seedream import SeedreamProvider
 from .image.seedream_4_5 import Seedream45Provider
 from .image.gpt_image_1 import GptImage1Provider
+from .image.gemini_3_pro_image import GeminiImageProvider
 from .edit.gpt_image_1 import GptImage1EditorProvider
 
 from config import settings
@@ -36,6 +37,7 @@ class ApiClientFactory:
         "seedream": SeedreamProvider,
         "seedream_4_5": Seedream45Provider,
         "gpt_image_1": GptImage1Provider,
+        "gemini_3_pro_image": GeminiImageProvider,
     }
     _vision_providers: dict[str, Type[BaseAuditProvider]] = {
         "doubao_seed_1_6_vision": DoubaoSeedVisionProvider,
