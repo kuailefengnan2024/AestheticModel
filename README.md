@@ -29,6 +29,11 @@
 
 *   **[ ] 1.1 VLM校准:** 设计并验证一个能引导公司VLM API稳定输出**多维度JSON评分**的“裁判Prompt”。**(这是成功的基石)**
 *   **[ ] 1.2 数据生成:** 编写脚本，自动化地生成海量的**成对偏好数据** `(Prompt, Winner, Loser)`，并附带VLM给出的完整多维度评分。
+    *   **尺寸策略 (Aspect Ratios):** 为了训练模型对不同构图的适应性，生图时应随机覆盖以下常用比例：
+        *   **Square:** 1:1
+        *   **Portrait:** 3:4, 9:16
+        *   **Landscape:** 4:3, 16:9
+        *   *(模型将通过动态Padding机制统一处理这些输入)*
 
 #### **Phase 2: 模型构建 (Modeling)**
 
@@ -66,8 +71,10 @@ AestheticModel/
 │   └── loss.py            # -> 组合排序损失函数 (CombinedRankingLoss)
 │
 ├── data_pipeline/         # [数据流水线] (原 data_engine) 负责数据生产与预处理
-│   ├── generate_data.py   # -> 自动化生成成对偏好数据 (Prompt -> Gen -> VLM Judge)
+│   ├── schemas.py         # -> [新] 定义统一的数据结构 (Pydantic Models)
 │   ├── generate_prompts.py# -> 批量生成高质量 Prompt
+│   ├── generate_images.py # -> [Step 1] 批量生成成对图片 (支持多尺寸)
+│   ├── judge_pairs.py     # -> [Step 2] 调用 VLM 对图片对进行打分和标注
 │   └── prompts/           # -> 存放引导 AI 的 Prompt 模板 (裁判提示词, 生成提示词)
 │
 ├── crawlers/                  # [新增] 爬虫专用文件夹
