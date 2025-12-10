@@ -31,13 +31,13 @@ from typing import List
 # 将项目根目录添加到Python的模块搜索路径中
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from api.llm.gemini_2_5_pro import Gemini25ProProvider
+from api.llm.gemini_3_pro import Gemini3ProProvider
 from config.settings import LLM_API_CONFIGS
 
 # ================= 配置区 =================
 SEED_FILE_PATH = "data/raw_prompts/byteartist_prompts.jsonl"
 OUTPUT_FILE_PATH = "data/image_prompts_expanded.jsonl"
-TARGET_COUNT = 1200      # 目标总数
+TARGET_COUNT = 2000      # 目标总数
 BATCH_SIZE = 10         # 每次生成的数量
 SEED_SAMPLE_SIZE = 16   # 每次参考的种子数量 (KV Context)
 MAX_CONCURRENT_REQUESTS = 64 # 最大并发请求数 (防止 Rate Limit)
@@ -112,8 +112,8 @@ async def generate_batch(llm_client, strategy_name: str, seeds: List[str], count
     Example:
     {{
       "prompts": [
-        "A futuristic city with neon lights...",
-        "Close-up of a coffee cup with steam..."
+        "xxxxxxx",
+        "xxxxxxxxxxxxx"
       ]
     }}
     Do NOT output any markdown code blocks (like ```json), just the raw JSON string.
@@ -188,12 +188,12 @@ async def generate_batch(llm_client, strategy_name: str, seeds: List[str], count
 
 async def main():
     # 1. 初始化 LLM
-    llm_config = LLM_API_CONFIGS.get("gemini_2_5_pro")
+    llm_config = LLM_API_CONFIGS.get("gemini_3_pro")
     if not llm_config:
         print("Error: Gemini config not found.")
         return
     
-    llm_client = Gemini25ProProvider(**llm_config)
+    llm_client = Gemini3ProProvider(**llm_config)
     
     # 2. 加载种子
     seeds = await load_seeds_from_jsonl(SEED_FILE_PATH)

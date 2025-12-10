@@ -10,6 +10,7 @@ from .llm.doubao15thinkpro import Doubao15ThinkproProvider
 from .llm.openai import OpenAILLMProvider
 from .llm.tuzi import TuziProvider
 from .llm.gemini_2_5_pro import Gemini25ProProvider
+from .llm.gemini_3_pro import Gemini3ProProvider
 from .vision.doubao_seed_1_6_vision import DoubaoSeedVisionProvider
 from .vision.gemini_2_5_pro import Gemini25ProVisionProvider
 from .image.seedream import SeedreamProvider
@@ -32,6 +33,7 @@ class ApiClientFactory:
         "openai": OpenAILLMProvider,
         "tuzi": TuziProvider,
         "gemini_2_5_pro": Gemini25ProProvider,
+        "gemini_3_pro": Gemini3ProProvider,
     }
     _image_providers: dict[str, Type[BaseImageProvider]] = {
         "seedream": SeedreamProvider,

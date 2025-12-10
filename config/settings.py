@@ -89,6 +89,12 @@ LLM_API_CONFIGS = {
         "model": "gemini-2.5-pro",
         "api_key": os.environ.get("AZURE_OPENAI_API_KEY"),
         "base_url": "https://genai-va-og.tiktok-row.org/gpt/openapi/online/v2/crawl/openai/deployments/gpt_openapi",
+    },
+    "gemini_3_pro": {
+        "model": "gemini-3-pro-preview-new",
+        "api_key": os.environ.get("AZURE_OPENAI_API_KEY"),
+        "base_url": "https://genai-va-og.tiktok-row.org/gpt/openapi/online/v2/crawl/openai/deployments/gpt_openapi",
+        "budget_tokens": 2000,
     }
 }
 
