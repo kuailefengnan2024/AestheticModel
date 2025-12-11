@@ -72,13 +72,16 @@ class ApiClientFactory:
             return None
 
     @staticmethod
-    def create_image_client() -> BaseImageProvider | None:
+    def create_image_client(provider_name: str = None) -> BaseImageProvider | None:
         """
-        根据全局配置创建并返回一个图片生成API客户端实例。
+        根据全局配置或指定名称创建并返回一个图片生成API客户端实例。
 
+        :param provider_name: (可选) 指定的提供商名称。如果为None，则使用 settings.IMAGE_API_PROVIDER。
         :return: 一个遵循 BaseImageProvider 接口的客户端实例，如果配置无效则返回None。
         """
-        provider_name = settings.IMAGE_API_PROVIDER
+        if provider_name is None:
+            provider_name = settings.IMAGE_API_PROVIDER
+            
         logger.info(f"根据配置创建图片生成客户端，提供商: {provider_name}")
 
         provider_class = ApiClientFactory._image_providers.get(provider_name)
@@ -94,13 +97,16 @@ class ApiClientFactory:
             return None
 
     @staticmethod
-    def create_vision_client() -> BaseAuditProvider | None:
+    def create_vision_client(provider_name: str = None) -> BaseAuditProvider | None:
         """
-        根据全局配置创建并返回一个视觉理解API客户端实例。
+        根据全局配置或指定名称创建并返回一个视觉理解API客户端实例。
 
+        :param provider_name: (可选) 指定的提供商名称。如果为None，则使用 settings.VISION_API_PROVIDER。
         :return: 一个遵循 BaseAuditProvider 接口的客户端实例，如果配置无效则返回None。
         """
-        provider_name = settings.VISION_API_PROVIDER
+        if provider_name is None:
+            provider_name = settings.VISION_API_PROVIDER
+
         logger.info(f"根据配置创建视觉理解客户端，提供商: {provider_name}")
 
         provider_class = ApiClientFactory._vision_providers.get(provider_name)
