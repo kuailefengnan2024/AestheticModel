@@ -63,10 +63,10 @@ ASPECT_RATIO_MAP = {
     "1:1":   (1024, 1024),
     
     # Portrait
-    "9:16":  (768, 1344),  # 接近 9:16
-    "3:4":   (896, 1152),  # 接近 3:4
-    "2:3":   (832, 1216),  # 接近 2:3
-    "4:5":   (960, 1200),  # 接近 4:5
+    "9:16":  (768, 1344),
+    "3:4":   (896, 1152),
+    "2:3":   (832, 1216),
+    "4:5":   (960, 1200),
     
     # Landscape
     "16:9":  (1344, 768),
@@ -75,8 +75,11 @@ ASPECT_RATIO_MAP = {
     "5:4":   (1200, 960),
     
     # Ultra Wide
-    "21:9":  (1536, 640)   # 接近 21:9
+    "21:9":  (1536, 640)
 }
+
+# Gemini 对非常规尺寸支持不佳，容易回退到 1:1，因此仅限制在核心尺寸
+GEMINI_SAFE_RATIOS = ["1:1", "16:9", "9:16", "4:3", "3:4"]
 
 # ------------------------------------------------------------------------------
 # 模型路由策略 (Model Routing Strategy)
@@ -89,7 +92,7 @@ MODEL_ROUTING_WEIGHTS = [
 ]
 
 # 并发限制 (防止 API 限流)
-CONCURRENCY_LIMIT = 5 
+CONCURRENCY_LIMIT = 16 
 
 # ==============================================================================
 # 核心逻辑
@@ -170,7 +173,14 @@ async def process_prompt(
             return
 
         # 2. 随机选择本组的尺寸 (A和B保持一致)
-        ratio_key = random.choice(list(ASPECT_RATIO_MAP.keys()))
+        # 差异化策略: Seedream 全开，Gemini 保守
+        if "gemini" in provider_name:
+            valid_ratios = GEMINI_SAFE_RATIOS
+        else:
+            valid_ratios = list(ASPECT_RATIO_MAP.keys())
+            
+        ratio_key = random.choice(valid_ratios)
+        
         width, height = ASPECT_RATIO_MAP[ratio_key]
         
         # 3. 定义文件名
