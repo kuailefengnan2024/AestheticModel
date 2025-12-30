@@ -60,22 +60,15 @@ OUTPUT_METADATA_FILE.parent.mkdir(parents=True, exist_ok=True)
 # Value: Seedream 需要的 (Width, Height) 像素值 (基准边长 1024)
 ASPECT_RATIO_MAP = {
     # Square
-    "1:1":   (1024, 1024),
+    "1:1":   (2048, 2048),
     
     # Portrait
-    "9:16":  (768, 1344),
-    "3:4":   (896, 1152),
-    "2:3":   (832, 1216),
-    "4:5":   (960, 1200),
+    "9:16":  (1536, 2688),
+    "3:4":   (1792, 2304),
     
     # Landscape
-    "16:9":  (1344, 768),
-    "4:3":   (1152, 896),
-    "3:2":   (1216, 832),
-    "5:4":   (1200, 960),
-    
-    # Ultra Wide
-    "21:9":  (1536, 640)
+    "16:9":  (2688, 1536),
+    "4:3":   (2304, 1792)
 }
 
 # Gemini 对非常规尺寸支持不佳，容易回退到 1:1，因此仅限制在核心尺寸
@@ -91,8 +84,14 @@ MODEL_ROUTING_WEIGHTS = [
     ("gemini_3_pro_image",  0.2)  # 20%
 ]
 
-# 并发限制 (防止 API 限流)
-CONCURRENCY_LIMIT = 16 
+# 并发限制 (Provider-Specific Concurrency Limits)
+# 针对不同模型的性能特点设置独立的并发上限
+PROVIDER_CONCURRENCY = {
+    "seedream_4_5": 32,      # 高吞吐 (IPM 500)，可以设置得比较高
+    "seedream": 16,          # Seedream 3.0
+    "gemini_3_pro_image": 4  # 限制较严 (QPM 100, TPM限制)，且Token消耗大，需保守
+}
+DEFAULT_CONCURRENCY = 8      # 未知模型的默认并发数 
 
 # ==============================================================================
 # 核心逻辑
@@ -147,7 +146,7 @@ async def generate_single_image(
         return False
 
 async def process_prompt(
-    semaphore: asyncio.Semaphore, 
+    semaphores: Dict[str, asyncio.Semaphore], 
     clients: Dict,
     prompt_data: dict, 
     pbar
@@ -155,17 +154,24 @@ async def process_prompt(
     """
     处理单个 Prompt 的完整流程：生成 A 和 B。
     """
+    prompt = prompt_data.get("prompt")
+    prompt_id = prompt_data.get("id", str(uuid.uuid4())[:8])
+    
+    # 1. 随机选择本组的模型
+    provider_name = random.choices(
+        [w[0] for w in MODEL_ROUTING_WEIGHTS], 
+        weights=[w[1] for w in MODEL_ROUTING_WEIGHTS]
+    )[0]
+    
+    # 获取对应的信号量，如果没有则使用默认的（这里假设有个 default key 或者临时创建一个）
+    # 注意：为了简单，我们在 main 里会确保所有 keys 都有 semaphore
+    # 如果 provider_name 不在配置里，回退到 seedream 的配置或默认值
+    semaphore = semaphores.get(provider_name)
+    if not semaphore:
+        # Fallback (理论上不应该发生，除非配置漏了)
+        semaphore = semaphores.get("default", asyncio.Semaphore(1))
+
     async with semaphore:
-        prompt = prompt_data.get("prompt")
-        prompt_id = prompt_data.get("id", str(uuid.uuid4())[:8])
-        
-        # 1. 随机选择本组的模型
-        # random.choices 返回列表，取第一个
-        provider_name = random.choices(
-            [w[0] for w in MODEL_ROUTING_WEIGHTS], 
-            weights=[w[1] for w in MODEL_ROUTING_WEIGHTS]
-        )[0]
-        
         client = clients.get(provider_name)
         if not client:
             logger.error(f"找不到模型客户端: {provider_name}")
@@ -182,6 +188,12 @@ async def process_prompt(
         ratio_key = random.choice(valid_ratios)
         
         width, height = ASPECT_RATIO_MAP[ratio_key]
+        
+        # --- 针对 Gemini 的尺寸减半优化 (Save Tokens) ---
+        # Seedream 使用 2K 分辨率，Gemini 使用 1K 分辨率
+        if "gemini" in provider_name:
+            width = width // 2
+            height = height // 2
         
         # 3. 定义文件名
         # 命名包含模型名和尺寸，方便后续分析
@@ -301,11 +313,20 @@ async def main():
         return
 
     # 4. 执行并发任务
-    semaphore = asyncio.Semaphore(CONCURRENCY_LIMIT)
+    # 初始化不同 Provider 的信号量
+    semaphores = {}
+    for p_name in clients.keys():
+        limit = PROVIDER_CONCURRENCY.get(p_name, DEFAULT_CONCURRENCY)
+        semaphores[p_name] = asyncio.Semaphore(limit)
+        print(f"  - [{p_name}] 并发限制: {limit}")
+    
+    # 添加默认 fallback
+    semaphores["default"] = asyncio.Semaphore(DEFAULT_CONCURRENCY)
+
     pbar = tqdm(total=len(tasks_to_run), desc="Generating Pairs")
     
     tasks = [
-        process_prompt(semaphore, clients, p, pbar)
+        process_prompt(semaphores, clients, p, pbar)
         for p in tasks_to_run
     ]
     
