@@ -79,15 +79,15 @@ GEMINI_SAFE_RATIOS = ["1:1", "16:9", "9:16", "4:3", "3:4"]
 # ------------------------------------------------------------------------------
 # 格式: (Provider Name, Probability Weight)
 MODEL_ROUTING_WEIGHTS = [
-    ("seedream_4_5",        0.5), # 50%
-    ("seedream",            0.3), # 30% (Seedream 3.0)
-    ("gemini_3_pro_image",  0.2)  # 20%
+    ("seedream_4_5",        0.8), # 50%
+    ("seedream",            0.2), # 30% (Seedream 3.0)
+    ("gemini_3_pro_image",  0)  # 20%
 ]
 
 # 并发限制 (Provider-Specific Concurrency Limits)
 # 针对不同模型的性能特点设置独立的并发上限
 PROVIDER_CONCURRENCY = {
-    "seedream_4_5": 32,      # 高吞吐 (IPM 500)，可以设置得比较高
+    "seedream_4_5": 32,      # 高吞吐 (IPM 500)，但考虑到本地网络带宽，32是比较稳妥的上限
     "seedream": 16,          # Seedream 3.0
     "gemini_3_pro_image": 4  # 限制较严 (QPM 100, TPM限制)，且Token消耗大，需保守
 }
