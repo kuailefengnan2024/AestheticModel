@@ -119,13 +119,17 @@ api/
 *   **相对关系更鲁棒**: 虽然专家打分不同，但他们通常都能一致认同“图A 比 图B 好”。利用这种相对的偏好（Ranking）进行训练，模型能学到更本质的审美特征。
 *   **数据更准**: VLM（如 GPT-4o, Gemini）在判断两张图谁好谁坏时，比直接给一张图打分要准确得多。
 
-#### **Q3: 最终模型的输入输出是什么?**
-*   **输入**: 一张图片 (Image) + 对应的提示词 (Prompt)。(Prompt 用于让模型理解“图文一致性”)
-*   **输出**: 一个字典，包含所有维度的**Logits (相对分数)**。
-    *   `e.g., {'total_score': 2.1, 'composition': 0.5, ...}`
-*   **用法**:
-    *   **筛选**: 给 4 张图，模型输出 4 个分，直接选分最高的。
-    *   **注意**: 输出的分数不是 0-10 的绝对值，而是表示相对优劣的数值（越大越好）。
+#### **Q3: 模型的输入输出是什么？（训练 vs 推理）**
+*   **核心机制：孪生网络 (Siamese Network)**
+    虽然训练数据是成对的，但模型本身是一个**“单图打分器”**。训练时我们将同一个模型复用两次（分别计算 A 和 B 的分数），利用 Loss 函数比较两者差异来更新权重。
+*   **训练阶段 (Training)**:
+    *   **逻辑输入**: 成对图片 `(Image_A, Image_B)` + `Prompt`。
+    *   **过程**: $Score_A = Model(A)$, $Score_B = Model(B)$ -> 计算 $Loss(Score_A, Score_B, Label)$。
+*   **推理阶段 (Inference)**:
+    *   **物理输入**: 单张图片 `(Image)` + `Prompt`。
+    *   **输出**: 一个字典，包含所有维度的**Logits (相对分数)**。
+        *   `e.g., {'total_score': 2.1, 'composition': 0.5, ...}`
+    *   **注意**: 输出的分数是相对值（Logits），数值越大代表质量越高，可用于排序或归一化映射到 0-10 分。
 
 #### **Q4: 为什么 MLP 只有 1-2 层？能承担复杂的审美评估吗?**
 *   **站在巨人的肩膀上**: 本模型的**核心特征提取能力**来自于强大的预训练模型 `OpenCLIP (ViT-L-14)` 和 `XLM-RoBERTa`。
@@ -144,6 +148,47 @@ api/
     [ Output: 1 ]    <-- 最终评分 (Scalar Logits)
     ```
 *   **数学表达**: $Score = W_2 \cdot \text{ReLU}(W_1 \cdot x + b_1) + b_2$
+
+#### **Q6: 动态尺寸与 Mask 处理的技术实现 (Dynamic Size & Masking)**
+
+为了让模型能够“看懂”任意尺寸的图片，我们在数据预处理阶段（Pre-processing）执行以下标准逻辑，该逻辑将封装在模型的 `Preprocessor` 中交付：
+
+1.  **保持比例缩放 (Resize with Aspect Ratio):**
+    *   **输入**: 任意尺寸图片（如 $1600 \times 900$, 16:9）。
+    *   **操作**: 将长边缩放至目标尺寸 $N$（如 224），短边按比例缩小。
+    *   **结果**: 图片变为 $224 \times 126$。
+
+2.  **黑边填充 (Pad to Square):**
+    *   **操作**: 创建一个 $224 \times 224$ 的全黑画布。
+    *   **操作**: 将缩放后的图片贴在画布左上角。
+    *   **结果**: 得到一张标准的 $224 \times 224$ 正方形图片（下半部分是黑边）。
+
+3.  **生成注意力掩码 (Generate Attention Mask):**
+    *   **操作**: 创建一个同样的 $224 \times 224$ 矩阵。
+    *   **逻辑**: 图片区域填 `1`，黑边区域填 `0`。
+    *   **结果**: 生成 `pixel_mask`。
+
+4.  **模型前向传播 (Model Forward):**
+    *   **输入**: 正方形图片 + `pixel_mask`。
+    *   **机制**: Vision Encoder 在计算特征时，利用 Mask 将黑边区域的权重强制置零。
+    *   **目的**: **确保模型只对真实图像内容打分，完全忽略填充的黑边。**
+
+#### **Q7: 模型的最终交付结构**
+
+**“模型”不仅仅是权重，而是“预处理逻辑 + 权重”的整体。** 
+
+*   **Hugging Face 风格封装（标准方案）**:
+    *   `config.json`: 模型结构参数。
+    *   `pytorch_model.bin`: 神经网络权重。
+    *   `preprocessor_config.json`: 定义上述预处理规则（如 `do_pad=True`）。
+    *   `processing_custom.py`: 包含上述 1-3 步逻辑的 Python 代码。
+*   **用户使用体验**:
+    ```python
+    # 用户只需两行代码，底层会自动下载权重并执行 processing_custom.py 中的 Mask 逻辑
+    processor = AutoImageProcessor.from_pretrained("YourRepo/AestheticModel", trust_remote_code=True)
+    inputs = processor(images=my_image, return_tensors="pt") 
+    # inputs 自动包含 'pixel_values' 和 'attention_mask'
+    ```
 
 ### **7. 数据集样例 (Dataset Sample)**
 
