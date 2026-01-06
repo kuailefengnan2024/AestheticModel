@@ -27,7 +27,7 @@ import numpy as np
 from PIL import Image
 from torch.utils.data import Dataset
 from torchvision.transforms import functional as F
-import open_clip
+from transformers import CLIPTokenizer
 
 from utils.logger import logger
 
@@ -86,20 +86,21 @@ class DynamicResizePad:
         }
 
 class AestheticDataset(Dataset):
-    def __init__(self, data_path: str, target_size: int = 224, model_name: str = "ViT-L-14"):
+    def __init__(self, data_path: str, target_size: int = 224, model_name: str = "openai/clip-vit-large-patch14"):
         """
         初始化数据集。
         
         Args:
             data_path: jsonl 文件路径
             target_size: 图片输入尺寸 (默认 224 for CLIP)
-            model_name: CLIP 模型名称，用于获取对应的 Tokenizer
+            model_name: CLIP 模型名称 (本地路径或HF Hub ID)
         """
         self.data_path = Path(data_path)
         self.target_size = target_size
         
-        # 初始化 Tokenizer (直接使用 OpenCLIP 的工厂方法)
-        self.tokenizer = open_clip.get_tokenizer(model_name)
+        # 初始化 Tokenizer (Transformers)
+        logger.info(f"Loading Tokenizer: {model_name}...")
+        self.tokenizer = CLIPTokenizer.from_pretrained(model_name)
         
         # 初始化预处理器
         self.preprocessor = DynamicResizePad(target_size=target_size)
@@ -126,8 +127,6 @@ class AestheticDataset(Dataset):
                     if p_winner.exists() and p_loser.exists():
                         valid_samples.append(item)
                     else:
-                        # 只有在调试模式下才打印详细警告，否则日志太乱
-                        # logger.warning(f"样本 {line_idx} 图片缺失，已跳过。")
                         pass
                 except Exception as e:
                     logger.warning(f"解析样本 {line_idx} 失败: {e}")
@@ -142,12 +141,10 @@ class AestheticDataset(Dataset):
         
         # 1. 读取图片
         try:
-            # 必须转为 RGB，防止 PNG 有 Alpha 通道导致 Tensor 维度不对
             img_winner = Image.open(item["image_winner_path"]).convert("RGB")
             img_loser = Image.open(item["image_loser_path"]).convert("RGB")
         except Exception as e:
             logger.error(f"读取图片失败: {e}")
-            # 回退策略：随机返回另一个样本，防止训练中断
             return self.__getitem__(np.random.randint(len(self)))
 
         # 2. 预处理 (Dynamic Padding)
@@ -155,34 +152,38 @@ class AestheticDataset(Dataset):
         processed_loser = self.preprocessor(img_loser)
         
         # 3. 处理分数 (Labels)
-        # 我们需要返回各维度的分数差异，或者直接返回原始分数让 Loss 处理
-        # 这里返回原始分数 scores dict
         scores = item["scores"]
-        
-        # 将分数扁平化为 Tensor，方便计算 Loss
-        # 假设我们关注 core dimensions: total, composition, color, lighting
         dims = ["total", "composition", "color", "lighting"]
         
         winner_scores = [scores[d]["winner"] for d in dims]
         loser_scores = [scores[d]["loser"] for d in dims]
         
         # 4. 处理文本 (Tokenize)
-        # tokenizer 返回 [1, 77] tensor, 我们需要 squeeze 掉 batch 维
-        text_tokens = self.tokenizer(item["prompt"]).squeeze(0)
+        # padding="max_length", truncation=True, return_tensors="pt"
+        text_inputs = self.tokenizer(
+            item["prompt"], 
+            padding="max_length", 
+            truncation=True, 
+            max_length=77, 
+            return_tensors="pt"
+        )
+        
+        input_ids = text_inputs["input_ids"].squeeze(0)
+        attention_mask = text_inputs["attention_mask"].squeeze(0)
         
         return {
             "winner": processed_winner, # {pixel_values, pixel_mask}
             "loser": processed_loser,   # {pixel_values, pixel_mask}
             "scores_winner": torch.tensor(winner_scores, dtype=torch.float32),
             "scores_loser": torch.tensor(loser_scores, dtype=torch.float32),
-            "input_ids": text_tokens
+            "input_ids": input_ids,
+            "attention_mask": attention_mask
         }
 
 def collate_fn(batch):
     """
     自定义 Collate 函数，处理嵌套字典。
     """
-    # 简单的拼接逻辑
     pixel_values_winner = torch.stack([item["winner"]["pixel_values"] for item in batch])
     pixel_mask_winner = torch.stack([item["winner"]["pixel_mask"] for item in batch])
     
@@ -192,8 +193,8 @@ def collate_fn(batch):
     scores_winner = torch.stack([item["scores_winner"] for item in batch])
     scores_loser = torch.stack([item["scores_loser"] for item in batch])
     
-    # 文本 Batch
     input_ids = torch.stack([item["input_ids"] for item in batch])
+    attention_mask = torch.stack([item["attention_mask"] for item in batch])
     
     return {
         "winner_pixel_values": pixel_values_winner,
@@ -202,5 +203,6 @@ def collate_fn(batch):
         "loser_pixel_mask": pixel_mask_loser,
         "scores_winner": scores_winner,
         "scores_loser": scores_loser,
-        "input_ids": input_ids
+        "input_ids": input_ids,
+        "attention_mask": attention_mask
     }

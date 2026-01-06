@@ -127,8 +127,8 @@ api/
     *   **过程**: $Score_A = Model(A)$, $Score_B = Model(B)$ -> 计算 $Loss(Score_A, Score_B, Label)$。
 *   **推理阶段 (Inference)**:
     *   **物理输入**: 单张图片 `(Image)` + `Prompt`。
-    *   **输出**: 一个字典，包含所有维度的**Logits (相对分数)**。
-        *   `e.g., {'total_score': 2.1, 'composition': 0.5, ...}`
+*   **输出**: 一个字典，包含所有维度的**Logits (相对分数)**。
+    *   `e.g., {'total_score': 2.1, 'composition': 0.5, ...}`
     *   **注意**: 输出的分数是相对值（Logits），数值越大代表质量越高，可用于排序或归一化映射到 0-10 分。
 
 #### **Q4: 为什么 MLP 只有 1-2 层？能承担复杂的审美评估吗?**
@@ -183,7 +183,7 @@ api/
     *   `preprocessor_config.json`: 定义上述预处理规则（如 `do_pad=True`）。
     *   `processing_custom.py`: 包含上述 1-3 步逻辑的 Python 代码。
 *   **用户使用体验**:
-    ```python
+        ```python
     # 用户只需两行代码，底层会自动下载权重并执行 processing_custom.py 中的 Mask 逻辑
     processor = AutoImageProcessor.from_pretrained("YourRepo/AestheticModel", trust_remote_code=True)
     inputs = processor(images=my_image, return_tensors="pt") 

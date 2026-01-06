@@ -1,82 +1,138 @@
-# -*- coding: utf-8 -*-
 """
-[对应于 README 3.2 评估指标]
+模型评估与推理脚本 (Evaluation & Inference)
 
-在独立的测试集上评估模型性能的脚本。
+功能:
+1.  **Batch Eval**: 加载测试集，计算 Ranking Accuracy。
+2.  **Single Inference**: 给定单张图片路径和 Prompt，输出模型打分。
 
-核心指标:
-**准确率 (Accuracy):** 在模型从未见过的人类标注数据上，
-模型判断 `Winner > Loser` 的正确率有多高。
-这是衡量模型是否学习到与人类一致的偏好判断能力的关键。
+使用方法:
+    # 评估数据集
+    python scripts/evaluate.py --model_path outputs/checkpoints/best_model.pth --mode batch
 
-工作流程:
-1.  **加载模型:**
-    - 加载一个已经训练好的模型 checkpoint。
-    - 将模型设置为评估模式 (`model.eval()`)。
-
-2.  **加载测试数据:**
-    - 创建一个用于测试的 `PreferenceDataset` 和 `DataLoader`。
-    - 测试集应该是独立的、最好由人类专家标注的数据，以提供最可靠的评估。
-
-3.  **执行评估:**
-    - 禁用梯度计算 (`torch.no_grad()`)。
-    - 遍历测试集中的每一个数据对。
-    - 将数据送入模型，得到 Winner 和 Loser 的总分 (`total_score`)。
-    - 如果 `model_score(Winner) > model_score(Loser)`，则记为一次正确预测。
-
-4.  **计算并报告结果:**
-    - 计算总的准确率: `(正确预测的数量 / 总样本数) * 100%`。
-    - (可选) 可以进一步分析在不同类别或场景下的准确率。
-
-执行命令示例:
-`python scripts/evaluate.py --checkpoint /path/to/model.pth --test_data data/human_annotated_test.jsonl`
+    # 单张推理
+    python scripts/evaluate.py --model_path outputs/checkpoints/best_model.pth --mode single --image_path test.jpg --prompt "a beautiful sunset"
 """
 import argparse
+import json
+import sys
+from pathlib import Path
+
 import torch
+from PIL import Image
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
-from core.architecture import AestheticModel
-from core.dataset import PreferenceDataset
+# 引入项目模块
+sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-def main(args):
-    # TODO: 1. 加载模型
-    #    - device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    #    - model = AestheticModel(...) # 需要一个方法来从config构建模型
-    #    - model.load_state_dict(torch.load(args.checkpoint))
-    #    - model.to(device)
-    #    - model.eval()
+from core.dataset import AestheticDataset, collate_fn, DynamicResizePad
+from core.architecture import AestheticScorer, ModelConfig
+import open_clip
 
-    # TODO: 2. 加载测试数据
-    #    - test_dataset = PreferenceDataset(data_path=args.test_data, ...)
-    #    - test_loader = DataLoader(test_dataset, ...)
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model_path", type=str, required=True, help="Path to .pth checkpoint")
+    parser.add_argument("--mode", type=str, choices=["batch", "single"], default="batch")
+    
+    # Batch Args
+    parser.add_argument("--data_path", type=str, default="data/preferences_train.jsonl")
+    parser.add_argument("--batch_size", type=int, default=32)
+    
+    # Single Args
+    parser.add_argument("--image_path", type=str)
+    parser.add_argument("--prompt", type=str, default="")
+    
+    # Model Args
+    parser.add_argument("--vision_model", type=str, default="ViT-L-14")
+    parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
+    
+    return parser.parse_args()
 
-    correct_predictions = 0
-    total_samples = 0
+def load_model(args):
+    """加载模型和权重"""
+    print(f"Loading model from {args.model_path}...")
+    config = ModelConfig(vision_model_name=args.vision_model)
+    model = AestheticScorer(config)
+    
+    # Load Weights
+    checkpoint = torch.load(args.model_path, map_location=args.device)
+    model.load_state_dict(checkpoint)
+    model.to(args.device)
+    model.eval()
+    return model
 
-    print("开始评估...")
+def evaluate_batch(model, args):
+    """批量评估准确率"""
+    print(f"Evaluating on {args.data_path}...")
+    dataset = AestheticDataset(args.data_path, target_size=224, model_name=args.vision_model)
+    dataloader = DataLoader(dataset, batch_size=args.batch_size, collate_fn=collate_fn, num_workers=4)
+    
+    correct = 0
+    total = 0
+    
     with torch.no_grad():
-        # for batch in test_loader:
-            # TODO: a. 将数据移动到GPU
-            # TODO: b. 模型前向传播，得到 winner_scores 和 loser_scores
-            #    - winner_total_score = winner_scores['total_score']
-            #    - loser_total_score = loser_scores['total_score']
+        for batch in tqdm(dataloader):
+            # Move to device
+            win_pixel = batch["winner_pixel_values"].to(args.device)
+            lose_pixel = batch["loser_pixel_values"].to(args.device)
+            input_ids = batch["input_ids"].to(args.device)
             
-            # TODO: c. 比较分数，计算正确预测的数量
-            #    - correct_predictions += (winner_total_score > loser_total_score).sum().item()
-            #    - total_samples += len(batch['winner_image'])
-            pass
+            # Forward
+            out_win = model(win_pixel, input_ids)
+            out_lose = model(lose_pixel, input_ids)
+            
+            # Metric: Total Score Accuracy
+            if "total" in out_win:
+                s_win = out_win["total"]
+                s_lose = out_lose["total"]
+                correct += (s_win > s_lose).sum().item()
+                total += len(s_win)
+                
+    acc = correct / max(1, total)
+    print(f"\nFinal Accuracy: {acc:.2%}")
+    return acc
 
-    # 4. 计算并报告结果
-    # accuracy = (correct_predictions / total_samples) * 100
-    # print(f"评估完成。")
-    # print(f"测试集样本总数: {total_samples}")
-    # print(f"准确率: {accuracy:.2f}%")
+def inference_single(model, args):
+    """单张图片推理"""
+    if not args.image_path:
+        print("Error: --image_path is required for single mode.")
+        return
 
+    # 1. Preprocess Image
+    preprocessor = DynamicResizePad(target_size=224)
+    try:
+        image = Image.open(args.image_path).convert("RGB")
+    except Exception as e:
+        print(f"Error loading image: {e}")
+        return
+        
+    processed = preprocessor(image)
+    pixel_values = processed["pixel_values"].unsqueeze(0).to(args.device) # [1, 3, H, W]
+    
+    # 2. Preprocess Text
+    tokenizer = open_clip.get_tokenizer(args.vision_model)
+    input_ids = tokenizer(args.prompt).to(args.device) # [1, 77]
+    
+    # 3. Forward
+    with torch.no_grad():
+        outputs = model(pixel_values, input_ids)
+        
+    # 4. Print Results
+    print("\n" + "="*30)
+    print("Aesthetic Scores:")
+    print("="*30)
+    for k, v in outputs.items():
+        print(f"{k.ljust(15)}: {v.item():.4f}")
+    print("="*30)
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="评估已训练的模型")
-    parser.add_argument("--checkpoint", type=str, required=True, help="已训练模型的checkpoint文件路径")
-    parser.add_argument("--test_data", type=str, required=True, help="用于评估的测试数据文件路径")
-    # TODO: 可能需要添加 --config 参数来帮助构建模型
-    args = parser.parse_args()
-    main(args)
+def main():
+    args = parse_args()
+    model = load_model(args)
+    
+    if args.mode == "batch":
+        evaluate_batch(model, args)
+    else:
+        inference_single(model, args)
+
+if __name__ == "__main__":
+    main()

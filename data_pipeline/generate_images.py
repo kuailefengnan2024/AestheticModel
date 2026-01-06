@@ -154,15 +154,15 @@ async def process_prompt(
     """
     处理单个 Prompt 的完整流程：生成 A 和 B。
     """
-    prompt = prompt_data.get("prompt")
-    prompt_id = prompt_data.get("id", str(uuid.uuid4())[:8])
-    
-    # 1. 随机选择本组的模型
-    provider_name = random.choices(
-        [w[0] for w in MODEL_ROUTING_WEIGHTS], 
-        weights=[w[1] for w in MODEL_ROUTING_WEIGHTS]
-    )[0]
-    
+        prompt = prompt_data.get("prompt")
+        prompt_id = prompt_data.get("id", str(uuid.uuid4())[:8])
+        
+        # 1. 随机选择本组的模型
+        provider_name = random.choices(
+            [w[0] for w in MODEL_ROUTING_WEIGHTS], 
+            weights=[w[1] for w in MODEL_ROUTING_WEIGHTS]
+        )[0]
+        
     # 获取对应的信号量，如果没有则使用默认的（这里假设有个 default key 或者临时创建一个）
     # 注意：为了简单，我们在 main 里会确保所有 keys 都有 semaphore
     # 如果 provider_name 不在配置里，回退到 seedream 的配置或默认值

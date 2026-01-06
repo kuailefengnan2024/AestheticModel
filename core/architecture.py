@@ -3,40 +3,35 @@
 核心模型架构 (AestheticModel - Dual Encoder Version)
 
 功能:
-1.  **Vision Backbone**: 使用 OpenCLIP (ViT-L-14) 提取图像特征。
-2.  **Text Backbone**: 使用 OpenCLIP 对应的 Text Transformer 提取 Prompt 特征。
-3.  **Feature Fusion**: 针对不同任务进行特征选择性融合。
+1.  **Vision Backbone**: 使用 Transformers CLIPModel (ViT-L-14) 提取图像特征。
+2.  **Text Backbone**: 使用 Transformers CLIPModel 提取 Prompt 特征。
+3.  **Feature Fusion**: 
     - 纯视觉任务 (构图/色彩): 只使用 Vision Features。
     - 图文任务 (一致性/总分): 使用 Vision + Text Features 拼接。
 4.  **Multi-Head MLP**: 独立的预测头。
 """
 import torch
 import torch.nn as nn
-import open_clip
+from transformers import CLIPModel, CLIPConfig
 
 class AestheticScorer(nn.Module):
     def __init__(self, config):
         """
         初始化模型。
-        config: 需包含 vision_model_name, vision_pretrained, mlp_hidden_dim, heads
+        config: 需包含 vision_model_name (path or name), mlp_hidden_dim, heads
         """
         super().__init__()
         self.config = config
         
         # 1. Load CLIP (Vision + Text)
-        print(f"Loading CLIP Model: {config.vision_model_name} (pretrained={config.vision_pretrained})...")
-        clip_model, _, _ = open_clip.create_model_and_transforms(
-            config.vision_model_name, 
-            pretrained=config.vision_pretrained
-        )
-        self.visual = clip_model.visual
-        self.text = clip_model.text
+        print(f"Loading CLIP Model (Transformers): {config.vision_model_name}...")
+        
+        # 从预训练加载 (支持本地路径或HF Hub ID)
+        self.clip = CLIPModel.from_pretrained(config.vision_model_name)
         
         # 自动获取维度
-        # OpenCLIP 的 visual 和 text 模块通常都有 output_dim 属性
-        # 注意: OpenCLIP 的 forward 可能会返回 projected features (e.g. 768)
-        self.vision_dim = self.visual.output_dim
-        self.text_dim = self.text.output_dim
+        self.vision_dim = self.clip.config.projection_dim
+        self.text_dim = self.clip.config.projection_dim
         
         # 2. Heads (Multi-Task)
         self.heads = nn.ModuleDict()
@@ -70,24 +65,24 @@ class AestheticScorer(nn.Module):
             attention_mask: (Optional, for text encoder)
         """
         # 1. Vision Features
-        # visual(x) returns projected features by default
-        v_emb = self.visual(pixel_values) # [B, vision_dim]
+        # get_image_features 返回 projection 后的特征 (normalized)
+        v_emb = self.clip.get_image_features(pixel_values=pixel_values) # [B, proj_dim]
         
         # 2. Text Features (Optional)
         t_emb = None
         if input_ids is not None:
-            # text(x) returns projected features
-            t_emb = self.text(input_ids) # [B, text_dim]
+            # get_text_features 返回 projection 后的特征 (normalized)
+            # 注意: transformers 的 text encoder 需要 attention_mask (padding mask)
+            # 如果 Dataset 没传 mask，通常 0 是 padding
+            t_emb = self.clip.get_text_features(input_ids=input_ids, attention_mask=attention_mask) # [B, proj_dim]
             
         # 3. Multi-Head Prediction
         outputs = {}
         for name, head in self.heads.items():
             if name in self.multimodal_heads:
                 if t_emb is None:
-                    # 如果没有提供 text，但 head 需要 text，这就尴尬了
-                    # 临时方案：用 0 填充 text 部分，或者报错
-                    # 这里假设训练时一定有 text
-                    raise ValueError(f"Head '{name}' requires text input, but input_ids is None.")
+                    # 如果没有提供 text，暂时报错
+                    raise ValueError(f"Head '{name}' requires text input.")
                 
                 # Concat
                 combined = torch.cat([v_emb, t_emb], dim=1) # [B, V+T]
@@ -101,9 +96,8 @@ class AestheticScorer(nn.Module):
 # 配置类
 class ModelConfig:
     def __init__(self, **kwargs):
-        self.vision_model_name = "ViT-L-14"
-        self.vision_pretrained = "openai"
+        # 默认指向 HF Hub ID，也可以改为本地路径 "models/clip-vit-large-patch14"
+        self.vision_model_name = "openai/clip-vit-large-patch14"
         self.mlp_hidden_dim = 1024
-        # 默认包含 text_alignment
-        self.heads = ["total", "composition", "color", "lighting", "text_alignment"]
+        self.heads = ["total", "composition", "color", "lighting"]
         self.__dict__.update(kwargs)

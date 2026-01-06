@@ -140,7 +140,7 @@ async def judge_single_pair(semaphore, client, pair_record: GeneratedPair, pbar)
                 prompt_text=prompt_text,
                 image_paths=[str(img_a), str(img_b)]
             )
-            
+                
             if error:
                 logger.error(f"VLM 调用失败: {error}")
                 # 记录到失败日志
@@ -249,7 +249,7 @@ async def main():
                         processed_ids.add(data["prompt_id"])
                 except:
                     pass
-    
+                    
     # 过滤掉已经打过分的
     tasks_to_run = [p for p in all_pairs if p.prompt_id not in processed_ids]
     
