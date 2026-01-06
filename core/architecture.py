@@ -1,133 +1,109 @@
 # -*- coding: utf-8 -*-
 """
-[对应于 README 2.1 架构定义]
+核心模型架构 (AestheticModel - Dual Encoder Version)
 
-定义了整个审美模型的神经网络结构。
-采用双塔结构 (Two-Tower Architecture) + 多头 MLP (Multi-Head MLP)。
-
-架构细节:
-1. Vision Encoder: OpenCLIP (ViT-L-14)
-   - 提取图像的高维特征。
-2. Text Encoder: XLM-RoBERTa
-   - 提取 Prompt 的语义特征，支持中英文混合。
-3. Fusion Layer:
-   - 由于 Vision 和 Text 来自不同的预训练空间，我们需要一个投影层(Projection)
-     将它们映射到同一个维度，然后进行融合 (Concatenation)。
-4. Regression Heads:
-   - 多个独立的 MLP 用于预测不同的审美维度。
+功能:
+1.  **Vision Backbone**: 使用 OpenCLIP (ViT-L-14) 提取图像特征。
+2.  **Text Backbone**: 使用 OpenCLIP 对应的 Text Transformer 提取 Prompt 特征。
+3.  **Feature Fusion**: 针对不同任务进行特征选择性融合。
+    - 纯视觉任务 (构图/色彩): 只使用 Vision Features。
+    - 图文任务 (一致性/总分): 使用 Vision + Text Features 拼接。
+4.  **Multi-Head MLP**: 独立的预测头。
 """
 import torch
 import torch.nn as nn
 import open_clip
-from transformers import AutoModel, AutoConfig
 
-class AestheticModel(nn.Module):
+class AestheticScorer(nn.Module):
     def __init__(self, config):
         """
         初始化模型。
-
-        Args:
-            config (object): 配置对象 (Namespace 或 dict)，包含:
-                             - vision_model_name, vision_pretrained
-                             - text_model_name
-                             - projection_dim, mlp_hidden_dim
-                             - heads (dict)
+        config: 需包含 vision_model_name, vision_pretrained, mlp_hidden_dim, heads
         """
         super().__init__()
         self.config = config
         
-        # ======================================================================
-        # 1. Vision Encoder (OpenCLIP)
-        # ======================================================================
-        print(f"Loading Vision Model: {config.vision_model_name} ({config.vision_pretrained})...")
-        # create_model_and_transforms 返回 (model, train_transform, val_transform)
-        # 我们只需要 model。在训练脚本中会单独处理 transform。
-        self.vision_backbone, _, _ = open_clip.create_model_and_transforms(
+        # 1. Load CLIP (Vision + Text)
+        print(f"Loading CLIP Model: {config.vision_model_name} (pretrained={config.vision_pretrained})...")
+        clip_model, _, _ = open_clip.create_model_and_transforms(
             config.vision_model_name, 
             pretrained=config.vision_pretrained
         )
-        # 冻结视觉部分的大部分参数? 通常在微调初期可以冻结，或者使用很小的 LR。
-        # 这里我们默认开启梯度，允许微调。
-        self.vision_hidden_dim = self.vision_backbone.visual.output_dim
+        self.visual = clip_model.visual
+        self.text = clip_model.text
         
-        # ======================================================================
-        # 2. Text Encoder (HuggingFace Transformers)
-        # ======================================================================
-        print(f"Loading Text Model: {config.text_model_name}...")
-        self.text_backbone = AutoModel.from_pretrained(config.text_model_name)
-        self.text_hidden_dim = self.text_backbone.config.hidden_size
-
-        # ======================================================================
-        # 3. Fusion Layer (特征融合)
-        # ======================================================================
-        # 我们将 vision 和 text 特征都投影到 projection_dim
-        self.projection_dim = config.projection_dim
+        # 自动获取维度
+        # OpenCLIP 的 visual 和 text 模块通常都有 output_dim 属性
+        # 注意: OpenCLIP 的 forward 可能会返回 projected features (e.g. 768)
+        self.vision_dim = self.visual.output_dim
+        self.text_dim = self.text.output_dim
         
-        self.vision_projector = nn.Sequential(
-            nn.Linear(self.vision_hidden_dim, self.projection_dim),
-            nn.LayerNorm(self.projection_dim),
-            nn.GELU()
-        )
-        
-        self.text_projector = nn.Sequential(
-            nn.Linear(self.text_hidden_dim, self.projection_dim),
-            nn.LayerNorm(self.projection_dim),
-            nn.GELU()
-        )
-        
-        # 融合后的维度 (Concat)
-        self.combined_dim = self.projection_dim * 2
-
-        # ======================================================================
-        # 4. Multi-Head Prediction Heads (多头预测)
-        # ======================================================================
+        # 2. Heads (Multi-Task)
         self.heads = nn.ModuleDict()
         
-        for head_name in config.heads.keys():
+        # 定义哪些 Head 需要 Text 特征
+        self.multimodal_heads = ["total", "text_alignment"]
+        
+        for head_name in config.heads:
+            # 决定输入维度
+            if head_name in self.multimodal_heads:
+                input_dim = self.vision_dim + self.text_dim
+            else:
+                input_dim = self.vision_dim
+                
             self.heads[head_name] = nn.Sequential(
-                nn.Linear(self.combined_dim, config.mlp_hidden_dim),
-                nn.ReLU(),
+                nn.Linear(input_dim, config.mlp_hidden_dim),
+                nn.LayerNorm(config.mlp_hidden_dim),
+                nn.GELU(),
                 nn.Dropout(0.1),
-                nn.Linear(config.mlp_hidden_dim, 1) # 输出一个标量分数
+                nn.Linear(config.mlp_hidden_dim, 1) # Scalar Score
             )
             
-        print("Model initialized successfully.")
+        # Log
+        print(f"Model Initialized. Vision Dim: {self.vision_dim}, Text Dim: {self.text_dim}")
 
-    def forward(self, image, input_ids, attention_mask=None):
+    def forward(self, pixel_values, input_ids=None, attention_mask=None):
         """
-        模型前向传播。
-
         Args:
-            image (torch.Tensor): 图片张量 [batch_size, channels, height, width]
-            input_ids (torch.Tensor): 文本Token IDs [batch_size, seq_len]
-            attention_mask (torch.Tensor): 文本Mask [batch_size, seq_len]
-
-        Returns:
-            dict: {head_name: score_tensor (batch_size, 1)}
+            pixel_values: [B, 3, H, W]
+            input_ids:    [B, SeqLen] (Optional, for text alignment)
+            attention_mask: (Optional, for text encoder)
         """
-        # 1. Extract Vision Features
-        # OpenCLIP 的 encode_image 通常返回归一化的特征，但我们也可以用未归一化的
-        vision_features = self.vision_backbone.encode_image(image) # [batch, vision_dim]
-        vision_features = vision_features.float() # 确保是 float32 (如果用了混合精度)
+        # 1. Vision Features
+        # visual(x) returns projected features by default
+        v_emb = self.visual(pixel_values) # [B, vision_dim]
         
-        # 2. Extract Text Features
-        # HuggingFace 模型输出通常是一个 object，last_hidden_state 是 [batch, seq, dim]
-        # 我们取 [CLS] token (index 0) 或者做 mean pooling
-        text_outputs = self.text_backbone(input_ids=input_ids, attention_mask=attention_mask)
-        # 取 CLS token 对应的向量作为句子表示
-        # 对于 Roberta 类模型，通常取第一个 token
-        text_features = text_outputs.last_hidden_state[:, 0, :] # [batch, text_dim]
-        
-        # 3. Projection & Fusion
-        v_proj = self.vision_projector(vision_features) # [batch, proj_dim]
-        t_proj = self.text_projector(text_features)     # [batch, proj_dim]
-        
-        # 拼接特征
-        combined_features = torch.cat((v_proj, t_proj), dim=1) # [batch, proj_dim * 2]
-        
-        # 4. Multi-Head Prediction
+        # 2. Text Features (Optional)
+        t_emb = None
+        if input_ids is not None:
+            # text(x) returns projected features
+            t_emb = self.text(input_ids) # [B, text_dim]
+            
+        # 3. Multi-Head Prediction
         outputs = {}
-        for head_name, head_layer in self.heads.items():
-            outputs[head_name] = head_layer(combined_features)
+        for name, head in self.heads.items():
+            if name in self.multimodal_heads:
+                if t_emb is None:
+                    # 如果没有提供 text，但 head 需要 text，这就尴尬了
+                    # 临时方案：用 0 填充 text 部分，或者报错
+                    # 这里假设训练时一定有 text
+                    raise ValueError(f"Head '{name}' requires text input, but input_ids is None.")
+                
+                # Concat
+                combined = torch.cat([v_emb, t_emb], dim=1) # [B, V+T]
+                outputs[name] = head(combined).squeeze(-1)
+            else:
+                # 纯视觉
+                outputs[name] = head(v_emb).squeeze(-1)
             
         return outputs
+
+# 配置类
+class ModelConfig:
+    def __init__(self, **kwargs):
+        self.vision_model_name = "ViT-L-14"
+        self.vision_pretrained = "openai"
+        self.mlp_hidden_dim = 1024
+        # 默认包含 text_alignment
+        self.heads = ["total", "composition", "color", "lighting", "text_alignment"]
+        self.__dict__.update(kwargs)

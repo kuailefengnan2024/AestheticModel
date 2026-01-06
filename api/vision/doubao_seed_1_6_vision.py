@@ -48,34 +48,49 @@ class DoubaoSeedVisionProvider(BaseAuditProvider):
     ) -> Tuple[str | None, str | None]:
         """
         使用多模态模型进行API调用。
+        支持单图或多图输入。
+        kwargs:
+            image_path: str (单图路径)
+            image_paths: List[str] (多图路径列表)
         """
-        image_path = kwargs.get("image_path")
-        if not image_path:
-            return None, "调用视觉模型必须提供 image_path 参数。"
+        # 1. 解析图片路径参数
+        image_paths = kwargs.get("image_paths", [])
+        if kwargs.get("image_path"):
+            image_paths.append(kwargs.get("image_path"))
+            
+        if not image_paths:
+            return None, "调用视觉模型必须提供 image_path 或 image_paths 参数。"
 
         try:
-            base64_image = await asyncio.to_thread(encode_image_to_base64, image_path)
+            # 2. 构造 content 列表
+            content_list = []
+            
+            # 2.1 添加所有图片
+            for path in image_paths:
+                base64_image = await asyncio.to_thread(encode_image_to_base64, path)
+                content_list.append({
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/jpeg;base64,{base64_image}"
+                    }
+                })
+            
+            # 2.2 添加 Prompt 文本
+            content_list.append({"type": "text", "text": prompt_text})
             
             messages = [
                 {
                     "role": "user",
-                    "content": [
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/jpeg;base64,{base64_image}"
-                            },
-                        },
-                        {"type": "text", "text": prompt_text},
-                    ],
+                    "content": content_list
                 }
             ]
             
-            logger.debug(f"正在调用视觉API，模型: {self.model}...")
+            logger.debug(f"正在调用视觉API，模型: {self.model}, 图片数量: {len(image_paths)}...")
             
             # 在将kwargs传递给SDK之前，移除我们内部使用的、但SDK无法识别的参数
             api_kwargs = kwargs.copy()
             api_kwargs.pop("image_path", None)
+            api_kwargs.pop("image_paths", None)
 
             response = await self.client.chat.completions.create(
                 model=self.model,

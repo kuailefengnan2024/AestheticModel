@@ -5,7 +5,7 @@
 功能: 利用 VLM (视觉大模型) 对生成的图片对进行多维度审美评估，构建偏好数据集。
 输入: data/intermediate/generated_pairs.jsonl (生图记录)
 输出: data/preferences_train.jsonl (最终训练数据集)
-逻辑: 读取图片对 -> 拼接/构造 VLM 请求 -> 解析 JSON 评分 -> 计算 Winner/Loser -> 生成结构化训练数据。
+逻辑: 读取图片对 -> 构造 VLM 请求 (多图列表) -> 解析 JSON 评分 -> 计算 Winner/Loser -> 生成结构化训练数据。
 """
 import asyncio
 import json
@@ -46,22 +46,25 @@ CONCURRENCY_LIMIT = 10 # 打分可以比生图稍微快一点
 # VLM 裁判 Prompt 模板
 # 这里的关键是让 VLM 返回纯 JSON，并且对 A/B 进行明确区分
 JUDGE_PROMPT_TEMPLATE = """
-You are an expert aesthetic critic and photographer.
-I will show you two images generated from the same prompt: "{prompt}".
+你是一位拥有15年经验的顶尖创意总监，你的审美判断既精准又深刻，并且非常熟悉当前市场的商业标准。你的任务是对我提供的两张图片，进行多维度的、专业的审美评估。
 
-Image A is the first image.
-Image B is the second image.
+这些图片是根据同一个提示词生成的："{prompt}"。
 
-Please evaluate both images on the following dimensions:
-1. Total Quality (Overall aesthetic appeal)
-2. Composition (Balance, framing, visual flow)
-3. Color (Harmony, palette choice, mood)
-4. Lighting (Contrast, shadows, atmosphere)
+The first image in the input list is Image A.
+The second image in the input list is Image B.
 
-For each dimension, give a score from 0.0 to 10.0 (allows one decimal place).
-Be critical and strict. A score of 8.0+ should only be given to professional-level works.
+**评估维度:**
 
-You MUST return the result in the following JSON format ONLY, no other text:
+请根据以下维度，对每一张图片进行独立打分（1-10分，1分最低，10分最高）：
+
+1.  **total (总分):** 对图片整体质量和吸引力的综合评价。
+2.  **composition (构图):** 元素的布局、平衡感、视觉引导线是否和谐且有冲击力。
+3.  **color (色彩):** 色彩搭配是否协调、有美感，是否能有效传达情感或主题。
+4.  **lighting (光影):** 光线的运用是否为画面增添了层次、氛围和质感。
+
+**输出格式要求:**
+
+请严格按照以下JSON格式返回你的评估结果，不要包含任何额外的解释或说明文字。
 
 {{
     "image_a": {{
@@ -75,7 +78,8 @@ You MUST return the result in the following JSON format ONLY, no other text:
         "composition": <score>,
         "color": <score>,
         "lighting": <score>
-    }}
+    }},
+    "reasoning": "请在这里用一句话简要说明你判定优劣的核心理由。"
 }}
 """
 
@@ -122,8 +126,6 @@ async def judge_single_pair(semaphore, client, pair_record: GeneratedPair, pbar)
         prompt_text = JUDGE_PROMPT_TEMPLATE.format(prompt=pair_record.prompt)
         
         # 准备图片路径列表 [Image A, Image B]
-        # 注意：这里我们不需要在代码里做 resize，直接传原图，Doubao/GPT 会自己处理
-        # 只要确保路径存在
         img_a = Path(pair_record.image_a_path)
         img_b = Path(pair_record.image_b_path)
         
@@ -133,61 +135,19 @@ async def judge_single_pair(semaphore, client, pair_record: GeneratedPair, pbar)
             return
 
         try:
-            # 这里的 call_api 需要支持多图输入
-            # 我们假设 Vision Client 的 call_api 签名支持 images=[path1, path2] 或者多次调用 add_image
-            # 由于目前的 DoubaoSeedVisionProvider 可能只实现了单图，我们需要检查一下
-            # 即使只支持单图，我们也可以把两张图拼起来 (Horizontal Stack) 发给它，或者发两次请求
-            # **最佳实践**: VLM API 通常支持多图列表。
-            # 如果我们用的是 api/vision/doubao_seed_1_6_vision.py，它目前只接收 `image_path` (单数)。
-            # 为了不改动底层 API 太大，我们这里采用 **“分别打分”** 或者 **“拼图打分”** 策略。
-            # 考虑到 Pairwise 比较需要同时看到两张图才能对比出细微差别，
-            # 如果底层 API 不支持多图列表，建议把两张图在本地拼成一张宽图发过去。
-            
-            # --- 拼图逻辑 ---
-            # 为了简单，我们暂时用 python 脚本把两张图横向拼在一起，生成一个临时文件
-            # 这样 VLM 只需要处理一张图，而且能直观对比
-            # 缺点：VLM 需要知道左边是A，右边是B
-            
-            # TODO: 更好的做法是修改 Vision Provider 支持多图列表。
-            # 这里先用临时拼图方案，因为这是最快能跑通且不破坏现有架构的方法。
-            
-            from PIL import Image
-            
-            im_a = Image.open(img_a)
-            im_b = Image.open(img_b)
-            
-            # 统一高度拼接
-            # 假设两张图尺寸接近（我们生图时是随机但也受控的）
-            # 直接横向拼接
-            dst = Image.new('RGB', (im_a.width + im_b.width + 20, max(im_a.height, im_b.height)), (0,0,0))
-            dst.paste(im_a, (0, 0))
-            dst.paste(im_b, (im_a.width + 20, 0)) # 中间留20px黑缝
-            
-            temp_combined_path = settings.BASE_DIR / "data" / "intermediate" / "temp" / f"combined_{pair_record.prompt_id}.jpg"
-            temp_combined_path.parent.mkdir(parents=True, exist_ok=True)
-            dst.save(temp_combined_path, quality=85)
-            
-            # 修改 Prompt 告诉模型左边是A，右边是B
-            combined_prompt = prompt_text.replace(
-                "Image A is the first image.", "Image A is on the LEFT side."
-            ).replace(
-                "Image B is the second image.", "Image B is on the RIGHT side."
-            )
-            
+            # 调用 Vision API (原生多图列表支持)
             response_content, error = await client.call_api(
-                prompt_text=combined_prompt,
-                image_path=str(temp_combined_path)
+                prompt_text=prompt_text,
+                image_paths=[str(img_a), str(img_b)]
             )
             
-            # 删除临时文件
-            try:
-                os.remove(temp_combined_path)
-            except:
-                pass
-                
             if error:
                 logger.error(f"VLM 调用失败: {error}")
-                raise Exception(error)
+                # 记录到失败日志
+                with open(FAILED_LOG_FILE, "a", encoding="utf-8") as f:
+                    f.write(json.dumps({"pair_id": pair_record.prompt_id, "error": str(error)}) + "\n")
+                pbar.update(1)
+                return
                 
             # 解析 JSON
             result_json = parse_vlm_response(response_content)
@@ -195,7 +155,7 @@ async def judge_single_pair(semaphore, client, pair_record: GeneratedPair, pbar)
                 logger.error(f"VLM 返回格式错误: {response_content[:100]}...")
                 # 记录到失败日志
                 with open(FAILED_LOG_FILE, "a", encoding="utf-8") as f:
-                    f.write(json.dumps({"pair": pair_record.dict(), "response": response_content}) + "\n")
+                    f.write(json.dumps({"pair_id": pair_record.prompt_id, "raw_response": response_content}) + "\n")
                 pbar.update(1)
                 return
                 
@@ -204,7 +164,8 @@ async def judge_single_pair(semaphore, client, pair_record: GeneratedPair, pbar)
             scores_b = result_json["image_b"]
             
             # 谁是总分 Winner?
-            if scores_a.get("total", 0) >= scores_b.get("total", 0):
+            # 注意：如果分数相等，我们倾向于认为 A 是 Winner (或者随机，这里为了确定性选 A)
+            if float(scores_a.get("total", 0)) >= float(scores_b.get("total", 0)):
                 winner_path = pair_record.image_a_path
                 loser_path = pair_record.image_b_path
                 is_a_winner = True
@@ -214,18 +175,9 @@ async def judge_single_pair(semaphore, client, pair_record: GeneratedPair, pbar)
                 is_a_winner = False
                 
             # 组装 Scores 对象
-            # 注意：schemas.Scores 里的每个字段都是 ScoreDetail(winner=..., loser=...)
-            # 所以我们要根据谁赢了总分，来填对应的坑。
-            # 如果 A 赢了 Total，那么 scores.composition.winner 就填 A 的构图分
-            # 哪怕 A 的构图分其实比 B 低（这就是 Feature Decoupling 还没做完的地方，
-            # 但 schemas.ScoreDetail 的 winner/loser 是指“整张图的赢家/输家”，而不是“该维度的赢家”）
-            # 等等！让我们回看 README 的定义：
-            # "scores": {"composition": {"winner": 9.0, "loser": 5.0}}
-            # 这里的 winner 指的是 image_winner_path 对应的那张图。
-            # 所以逻辑是：
-            # 1. 先确定 Total Winner 是哪张图（比如 A）。
-            # 2. 那么 scores 里的所有 "winner" 字段都填 A 的分，所有 "loser" 字段都填 B 的分。
-            # 3. 如果 B 的色彩分更高，那么 color.loser > color.winner，这是允许的，也是模型要学的。
+            # 这里的 winner/loser 指的是 "image_winner_path" 和 "image_loser_path" 对应的实体
+            # 例如：如果 B 是 Winner (Total分高)，那么 TrainingData.image_winner_path = B
+            # 此时 scores.color.winner 应该填 B 的色彩分，scores.color.loser 填 A 的色彩分
             
             final_scores = {}
             dimensions = ["total", "composition", "color", "lighting"]
@@ -244,7 +196,8 @@ async def judge_single_pair(semaphore, client, pair_record: GeneratedPair, pbar)
                 prompt_id=pair_record.prompt_id,
                 image_winner_path=winner_path,
                 image_loser_path=loser_path,
-                scores=Scores(**final_scores)
+                scores=Scores(**final_scores),
+                reasoning=result_json.get("reasoning", "")
             )
             
             # 写入文件
@@ -254,18 +207,19 @@ async def judge_single_pair(semaphore, client, pair_record: GeneratedPair, pbar)
             pbar.update(1)
 
         except Exception as e:
-            logger.error(f"处理 Pair 异常: {e}")
+            logger.error(f"处理 Pair 异常 [{pair_record.prompt_id}]: {e}")
             pbar.update(1)
 
 async def main():
-    print(f"开始批量打分任务...")
+    print(f"开始批量打分任务 (VLM Judge)...")
     print(f"输入: {INPUT_PAIRS_FILE}")
     print(f"输出: {OUTPUT_TRAIN_FILE}")
     
     # 1. 初始化 Vision Client
+    # 注意：确保 .env 中配置了 VISION_API_PROVIDER=doubao_seed_1_6_vision
     client = ApiClientFactory.create_vision_client()
     if not client:
-        logger.error("无法初始化 Vision 客户端。")
+        logger.error("无法初始化 Vision 客户端，请检查配置。")
         return
 
     # 2. 读取 Pairs
@@ -282,7 +236,7 @@ async def main():
                 except:
                     continue
                     
-    print(f"总共有 {len(all_pairs)} 对图片待打分。")
+    print(f"总共有 {len(all_pairs)} 对图片记录。")
     
     # 3. 检查断点 (通过 prompt_id)
     processed_ids = set()
@@ -295,9 +249,15 @@ async def main():
                         processed_ids.add(data["prompt_id"])
                 except:
                     pass
-                    
+    
+    # 过滤掉已经打过分的
     tasks_to_run = [p for p in all_pairs if p.prompt_id not in processed_ids]
-    print(f"剩余 {len(tasks_to_run)} 对需要处理。")
+    
+    # 还需要过滤掉本地图片文件不存在的 (比如被用户删了)
+    # 这一步会稍微花点时间 IO，但为了稳健性是值得的
+    # 也可以在运行时检查
+    
+    print(f"剩余 {len(tasks_to_run)} 对需要打分。")
     
     if not tasks_to_run:
         print("所有任务已完成！")
@@ -319,4 +279,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-

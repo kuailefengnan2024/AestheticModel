@@ -1,58 +1,206 @@
 # -*- coding: utf-8 -*-
 """
-定义了用于加载成对偏好数据的PyTorch Dataset。
+核心数据集模块 (Core Dataset & Preprocessing)
 
-这个模块的核心是 `PreferenceDataset` 类，它负责：
-1.  读取由 data_engine 生成的成对偏好数据 (Winner, Loser)。
-2.  为每个样本（图片和文本）进行必要的预处理，例如：
-    - 图片: resize, crop, normalize。
-    - 文本: tokenizer。
-3.  将处理好的数据转换成PyTorch Tensor，以供模型训练使用。
+功能:
+1.  **AestheticDataset**: 
+    - 负责加载 JSONL 格式的成对偏好数据 (Winner/Loser)。
+    - 执行数据预检 (Pre-check)，自动过滤掉图片缺失的样本，确保训练鲁棒性。
+    - 将原始数据转换为 PyTorch Tensor，并提取多维度评分 Label。
+
+2.  **DynamicResizePad (关键预处理)**:
+    - 实现了本项目核心的 "动态尺寸支持" 逻辑。
+    - **Resize**: 保持长宽比缩放图片，避免拉伸变形。
+    - **Padding**: 将缩放后的图片填充至标准正方形 (如 224x224)。
+    - **Masking**: 生成 pixel-level 的 Attention Mask (1=有效, 0=填充)，指导模型忽略黑边。
+
+注意:
+    本模块生成的 Tensor 是内存对象，直接供给 DataLoader 使用，不会保存为物理文件。
 """
-from torch.utils.data import Dataset
+import json
+import os
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple, Any
 
-class PreferenceDataset(Dataset):
-    def __init__(self, data_path, image_preprocessor, text_tokenizer):
+import torch
+import numpy as np
+from PIL import Image
+from torch.utils.data import Dataset
+from torchvision.transforms import functional as F
+import open_clip
+
+from utils.logger import logger
+
+class DynamicResizePad:
+    """
+    [预处理核心] 动态缩放与填充逻辑。
+    将任意比例图片缩放并填充至正方形，同时生成 Attention Mask。
+    """
+    def __init__(self, target_size: int = 224, mean=(0.48145466, 0.4578275, 0.40821073), std=(0.26862954, 0.26130258, 0.27577711)):
+        self.target_size = target_size
+        self.mean = mean
+        self.std = std
+
+    def __call__(self, image: Image.Image) -> Dict[str, torch.Tensor]:
+        """
+        执行转换。
+        Returns:
+            {
+                "pixel_values": [3, H, W]  (Normalized Tensor),
+                "pixel_mask":   [1, H, W]  (0/1 Mask, 1=Image, 0=Padding)
+            }
+        """
+        # 1. 保持比例缩放 (Resize)
+        w, h = image.size
+        scale = self.target_size / max(w, h)
+        new_w, new_h = int(w * scale), int(h * scale)
+        
+        # 使用 BICUBIC 保证质量
+        resized_image = image.resize((new_w, new_h), Image.BICUBIC)
+        
+        # 2. 转为 Tensor 并归一化
+        # F.to_tensor 会归一化到 [0, 1]
+        img_tensor = F.to_tensor(resized_image) 
+        # Normalize (使用 CLIP 默认均值方差)
+        img_tensor = F.normalize(img_tensor, self.mean, self.std)
+        
+        # 3. 创建画布并填充 (Padding)
+        # 初始化一个全0 (或全黑) 的画布 [3, target_size, target_size]
+        # 注意：这里填充的是 0，但因为已经 Normalize 过了，0 并不代表黑色。
+        # 更好的做法是用 0 填充，然后依靠 Mask 让模型忽略它。
+        padded_image = torch.zeros((3, self.target_size, self.target_size), dtype=img_tensor.dtype)
+        
+        # 贴在左上角 (0, 0)
+        # 也可以做 Center Padding，但左上角计算最简单
+        padded_image[:, :new_h, :new_w] = img_tensor
+        
+        # 4. 生成 Mask (Attention Mask)
+        # 1.0 = 有效区域, 0.0 = 填充区域
+        # 形状 [1, H, W] 方便后续卷积或 Patch 处理
+        pixel_mask = torch.zeros((1, self.target_size, self.target_size), dtype=torch.float32)
+        pixel_mask[:, :new_h, :new_w] = 1.0
+        
+        return {
+            "pixel_values": padded_image,
+            "pixel_mask": pixel_mask
+        }
+
+class AestheticDataset(Dataset):
+    def __init__(self, data_path: str, target_size: int = 224, model_name: str = "ViT-L-14"):
         """
         初始化数据集。
-
+        
         Args:
-            data_path (str): 指向偏好数据文件（例如.jsonl或.csv）的路径。
-            image_preprocessor (object): 用于处理图片的预处理器 (e.g., from CLIP)。
-            text_tokenizer (object): 用于处理文本的tokenizer (e.g., from BERT)。
+            data_path: jsonl 文件路径
+            target_size: 图片输入尺寸 (默认 224 for CLIP)
+            model_name: CLIP 模型名称，用于获取对应的 Tokenizer
         """
-        # TODO: 1. 加载数据文件 (e.g., use pandas or json library)
-        self.data = self._load_data(data_path)
-        self.image_preprocessor = image_preprocessor
-        self.text_tokenizer = text_tokenizer
+        self.data_path = Path(data_path)
+        self.target_size = target_size
+        
+        # 初始化 Tokenizer (直接使用 OpenCLIP 的工厂方法)
+        self.tokenizer = open_clip.get_tokenizer(model_name)
+        
+        # 初始化预处理器
+        self.preprocessor = DynamicResizePad(target_size=target_size)
+        
+        # 加载并过滤数据
+        self.samples = self._load_and_filter_data()
+        logger.info(f"Dataset 初始化完成: 加载了 {len(self.samples)} 条有效样本。")
+
+    def _load_and_filter_data(self) -> List[Dict]:
+        """加载数据并预检图片是否存在"""
+        valid_samples = []
+        if not self.data_path.exists():
+            raise FileNotFoundError(f"数据文件不存在: {self.data_path}")
+            
+        with open(self.data_path, "r", encoding="utf-8") as f:
+            for line_idx, line in enumerate(f):
+                try:
+                    item = json.loads(line)
+                    
+                    # 检查路径
+                    p_winner = Path(item["image_winner_path"])
+                    p_loser = Path(item["image_loser_path"])
+                    
+                    if p_winner.exists() and p_loser.exists():
+                        valid_samples.append(item)
+                    else:
+                        # 只有在调试模式下才打印详细警告，否则日志太乱
+                        # logger.warning(f"样本 {line_idx} 图片缺失，已跳过。")
+                        pass
+                except Exception as e:
+                    logger.warning(f"解析样本 {line_idx} 失败: {e}")
+                    
+        return valid_samples
 
     def __len__(self):
-        """
-        返回数据集中样本的总数。
-        """
-        return len(self.data)
+        return len(self.samples)
 
     def __getitem__(self, idx):
-        """
-        根据索引idx，获取一个成对的样本。
-
-        Returns:
-            dict: 一个包含处理好的 Winner 和 Loser 数据的字典。
-                  e.g., {
-                      'winner_image': tensor, 'winner_text': tensor,
-                      'loser_image': tensor, 'loser_text': tensor
-                  }
-        """
-        sample = self.data[idx]
+        item = self.samples[idx]
         
-        # TODO: 1. 加载 Winner 和 Loser 的图片和文本
-        # TODO: 2. 对图片和文本进行预处理
-        # TODO: 3. 返回一个包含所有 tensors 的字典
-        pass
+        # 1. 读取图片
+        try:
+            # 必须转为 RGB，防止 PNG 有 Alpha 通道导致 Tensor 维度不对
+            img_winner = Image.open(item["image_winner_path"]).convert("RGB")
+            img_loser = Image.open(item["image_loser_path"]).convert("RGB")
+        except Exception as e:
+            logger.error(f"读取图片失败: {e}")
+            # 回退策略：随机返回另一个样本，防止训练中断
+            return self.__getitem__(np.random.randint(len(self)))
 
-    def _load_data(self, data_path):
-        """
-        私有方法，用于从文件中加载和解析数据。
-        """
-        # 实现数据加载逻辑
-        pass
+        # 2. 预处理 (Dynamic Padding)
+        processed_winner = self.preprocessor(img_winner)
+        processed_loser = self.preprocessor(img_loser)
+        
+        # 3. 处理分数 (Labels)
+        # 我们需要返回各维度的分数差异，或者直接返回原始分数让 Loss 处理
+        # 这里返回原始分数 scores dict
+        scores = item["scores"]
+        
+        # 将分数扁平化为 Tensor，方便计算 Loss
+        # 假设我们关注 core dimensions: total, composition, color, lighting
+        dims = ["total", "composition", "color", "lighting"]
+        
+        winner_scores = [scores[d]["winner"] for d in dims]
+        loser_scores = [scores[d]["loser"] for d in dims]
+        
+        # 4. 处理文本 (Tokenize)
+        # tokenizer 返回 [1, 77] tensor, 我们需要 squeeze 掉 batch 维
+        text_tokens = self.tokenizer(item["prompt"]).squeeze(0)
+        
+        return {
+            "winner": processed_winner, # {pixel_values, pixel_mask}
+            "loser": processed_loser,   # {pixel_values, pixel_mask}
+            "scores_winner": torch.tensor(winner_scores, dtype=torch.float32),
+            "scores_loser": torch.tensor(loser_scores, dtype=torch.float32),
+            "input_ids": text_tokens
+        }
+
+def collate_fn(batch):
+    """
+    自定义 Collate 函数，处理嵌套字典。
+    """
+    # 简单的拼接逻辑
+    pixel_values_winner = torch.stack([item["winner"]["pixel_values"] for item in batch])
+    pixel_mask_winner = torch.stack([item["winner"]["pixel_mask"] for item in batch])
+    
+    pixel_values_loser = torch.stack([item["loser"]["pixel_values"] for item in batch])
+    pixel_mask_loser = torch.stack([item["loser"]["pixel_mask"] for item in batch])
+    
+    scores_winner = torch.stack([item["scores_winner"] for item in batch])
+    scores_loser = torch.stack([item["scores_loser"] for item in batch])
+    
+    # 文本 Batch
+    input_ids = torch.stack([item["input_ids"] for item in batch])
+    
+    return {
+        "winner_pixel_values": pixel_values_winner,
+        "winner_pixel_mask": pixel_mask_winner,
+        "loser_pixel_values": pixel_values_loser,
+        "loser_pixel_mask": pixel_mask_loser,
+        "scores_winner": scores_winner,
+        "scores_loser": scores_loser,
+        "input_ids": input_ids
+    }

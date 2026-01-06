@@ -72,6 +72,9 @@ class TrainingData(BaseModel):
     # 注意：winner_score['total'] 必须 > loser_score['total']
     scores: Scores
     
+    # VLM 给出的判词/理由，用于可解释性分析或后续优化
+    reasoning: Optional[str] = Field(None, description="VLM对评分优劣的核心理由")
+    
     # 元数据
     source: str = "synthetic_vlm_judge"
     prompt_id: Optional[str] = None
