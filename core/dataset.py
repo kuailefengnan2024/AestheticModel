@@ -86,17 +86,20 @@ class DynamicResizePad:
         }
 
 class AestheticDataset(Dataset):
-    def __init__(self, data_path: str, target_size: int = 224, model_name: str = "openai/clip-vit-large-patch14"):
+    def __init__(self, data_path: str, target_size: int = 224, model_name: str = "openai/clip-vit-large-patch14", image_dir: Optional[str] = None):
         """
         初始化数据集。
-        
+
         Args:
             data_path: jsonl 文件路径
             target_size: 图片输入尺寸 (默认 224 for CLIP)
             model_name: CLIP 模型名称 (本地路径或HF Hub ID)
+            image_dir: (可选) 图片根目录覆盖。如果提供，将忽略 JSONL 中的绝对路径，
+                       只使用文件名在 image_dir 下查找图片。用于读取预缩放的小图。
         """
         self.data_path = Path(data_path)
         self.target_size = target_size
+        self.image_dir_override = Path(image_dir) if image_dir else None
         
         # 初始化 Tokenizer (Transformers)
         logger.info(f"Loading Tokenizer: {model_name}...")
@@ -104,6 +107,9 @@ class AestheticDataset(Dataset):
         
         # 初始化预处理器
         self.preprocessor = DynamicResizePad(target_size=target_size)
+
+        if self.image_dir_override:
+            logger.info(f"Using Image Directory Override: {self.image_dir_override}")
         
         # 加载并过滤数据
         self.samples = self._load_and_filter_data()
@@ -124,6 +130,11 @@ class AestheticDataset(Dataset):
                     p_winner = Path(item["image_winner_path"])
                     p_loser = Path(item["image_loser_path"])
                     
+                    # 如果有 override，检查 override 路径下的文件是否存在
+                    if self.image_dir_override:
+                        p_winner = self.image_dir_override / p_winner.name
+                        p_loser = self.image_dir_override / p_loser.name
+
                     if p_winner.exists() and p_loser.exists():
                         valid_samples.append(item)
                     else:
@@ -140,11 +151,19 @@ class AestheticDataset(Dataset):
         item = self.samples[idx]
         
         # 1. 读取图片
+        # 路径处理逻辑：如果有 override，使用 override 目录 + 文件名
+        if self.image_dir_override:
+            winner_path = self.image_dir_override / Path(item["image_winner_path"]).name
+            loser_path = self.image_dir_override / Path(item["image_loser_path"]).name
+        else:
+            winner_path = item["image_winner_path"]
+            loser_path = item["image_loser_path"]
+
         try:
-            img_winner = Image.open(item["image_winner_path"]).convert("RGB")
-            img_loser = Image.open(item["image_loser_path"]).convert("RGB")
+            img_winner = Image.open(winner_path).convert("RGB")
+            img_loser = Image.open(loser_path).convert("RGB")
         except Exception as e:
-            logger.error(f"读取图片失败: {e}")
+            logger.error(f"读取图片失败: {winner_path} / {loser_path} - {e}")
             return self.__getitem__(np.random.randint(len(self)))
 
         # 2. 预处理 (Dynamic Padding)

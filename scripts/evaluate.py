@@ -29,21 +29,29 @@ from core.dataset import AestheticDataset, collate_fn, DynamicResizePad
 from core.architecture import AestheticScorer, ModelConfig
 import open_clip
 
+# ==============================================================================
+# 默认配置区域 (Default Configuration)
+# 如果不想使用命令行参数，可以在这里直接修改
+# ==============================================================================
+DEFAULT_MODEL_PATH = "outputs/checkpoints/best_model.pth" # 训练好的模型路径
+DEFAULT_IMAGE_PATH = "outputs/test_seedream_v4_5.png"     # 待测试的图片路径
+DEFAULT_PROMPT = "A futuristic 3D mascot character"       # 对应的 Prompt
+
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model_path", type=str, required=True, help="Path to .pth checkpoint")
-    parser.add_argument("--mode", type=str, choices=["batch", "single"], default="batch")
+    parser.add_argument("--model_path", type=str, default=DEFAULT_MODEL_PATH, help="Path to .pth checkpoint")
+    parser.add_argument("--mode", type=str, choices=["batch", "single"], default="single")
     
     # Batch Args
     parser.add_argument("--data_path", type=str, default="data/preferences_train.jsonl")
     parser.add_argument("--batch_size", type=int, default=32)
     
     # Single Args
-    parser.add_argument("--image_path", type=str)
-    parser.add_argument("--prompt", type=str, default="")
+    parser.add_argument("--image_path", type=str, default=DEFAULT_IMAGE_PATH)
+    parser.add_argument("--prompt", type=str, default=DEFAULT_PROMPT)
     
     # Model Args
-    parser.add_argument("--vision_model", type=str, default="ViT-L-14")
+    parser.add_argument("--vision_model", type=str, default="openai/clip-vit-large-patch14")
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
     
     return parser.parse_args()

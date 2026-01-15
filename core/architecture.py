@@ -75,7 +75,7 @@ class AestheticScorer(nn.Module):
             # 注意: transformers 的 text encoder 需要 attention_mask (padding mask)
             # 如果 Dataset 没传 mask，通常 0 是 padding
             t_emb = self.clip.get_text_features(input_ids=input_ids, attention_mask=attention_mask) # [B, proj_dim]
-            
+        
         # 3. Multi-Head Prediction
         outputs = {}
         for name, head in self.heads.items():

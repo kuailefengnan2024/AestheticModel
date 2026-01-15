@@ -11,19 +11,28 @@
 使用方法:
     python scripts/train.py --batch_size 32 --epochs 10 --lr 1e-5
 """
+import warnings
+# 过滤无关紧要的 Pydantic 警告
+warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
+
 import os
 import sys
 import argparse
 import random
 import time
+import warnings
 from pathlib import Path
 from datetime import datetime
+
+# Filter pydantic warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
 
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm
 import wandb
+import matplotlib.pyplot as plt
 
 # 引入项目模块
 sys.path.append(str(Path(__file__).resolve().parent.parent))
@@ -35,40 +44,111 @@ from core.loss import CombinedRankingLoss
 from utils.logger import logger
 
 # ==============================================================================
-# 训练配置
+# 默认配置区域 (Default Configuration)
+# 如果不想使用命令行参数，可以在这里直接修改
+# ==============================================================================
+CONFIG = {
+    # Data
+    "data_path": "data/preferences_train.jsonl",
+    "val_split": 0.1,
+    
+    # Model
+    "vision_model": "openai/clip-vit-large-patch14",
+    
+    # Training
+    "batch_size": 8, # Reduced from 16 to avoid VRAM thrashing (24GB limit)
+    "epochs": 50,
+    "lr": 1e-5,
+    "head_lr": 1e-4,
+    "weight_decay": 0.01,
+    "grad_clip": 1.0,
+    
+    # Loss
+    "rank_weight": 1.0,
+    "reg_weight": 0.1,
+    
+    # System
+    "device": "cuda" if torch.cuda.is_available() else "cpu",
+    # Windows 下建议设为 0，避免多进程 Spawn 开销巨大的问题
+    "num_workers": 0 if os.name == 'nt' else 4,
+    "output_dir": "outputs/checkpoints",
+    "image_dir": "outputs/raw/pairs_512", # Default to resized images
+    "wandb": False,
+    "plot_loss": True,
+    "run_name": None
+}
+
+# ==============================================================================
+# 硬件加速 (RTX 3090/4090 必须开启)
+# 移入 main 函数或在 if name == main 中调用，避免多进程重复执行
 # ==============================================================================
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train Aesthetic Scorer")
     
     # Data
-    parser.add_argument("--data_path", type=str, default="data/preferences_train.jsonl")
-    parser.add_argument("--val_split", type=float, default=0.1, help="Validation set ratio")
+    parser.add_argument("--data_path", type=str, default=CONFIG["data_path"])
+    parser.add_argument("--val_split", type=float, default=CONFIG["val_split"])
     
     # Model
-    # 默认指向 Hugging Face Hub ID
-    parser.add_argument("--vision_model", type=str, default="openai/clip-vit-large-patch14", help="CLIP model name or path")
-    
+    parser.add_argument("--vision_model", type=str, default=CONFIG["vision_model"])
+
     # Training
-    parser.add_argument("--batch_size", type=int, default=32)
-    parser.add_argument("--epochs", type=int, default=5)
-    parser.add_argument("--lr", type=float, default=1e-5, help="Learning rate for backbone")
-    parser.add_argument("--head_lr", type=float, default=1e-4, help="Learning rate for heads (usually higher)")
-    parser.add_argument("--weight_decay", type=float, default=0.01)
-    parser.add_argument("--grad_clip", type=float, default=1.0)
+    parser.add_argument("--batch_size", type=int, default=CONFIG["batch_size"])
+    parser.add_argument("--epochs", type=int, default=CONFIG["epochs"])
+    parser.add_argument("--lr", type=float, default=CONFIG["lr"])
+    parser.add_argument("--head_lr", type=float, default=CONFIG["head_lr"])
+    parser.add_argument("--weight_decay", type=float, default=CONFIG["weight_decay"])
+    parser.add_argument("--grad_clip", type=float, default=CONFIG["grad_clip"])
     
     # Loss
-    parser.add_argument("--rank_weight", type=float, default=1.0)
-    parser.add_argument("--reg_weight", type=float, default=0.1)
+    parser.add_argument("--rank_weight", type=float, default=CONFIG["rank_weight"])
+    parser.add_argument("--reg_weight", type=float, default=CONFIG["reg_weight"])
     
     # System
-    parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
-    parser.add_argument("--num_workers", type=int, default=4)
-    parser.add_argument("--output_dir", type=str, default="outputs/checkpoints")
-    parser.add_argument("--wandb", action="store_true", default=False, help="Enable WandB logging")
-    parser.add_argument("--run_name", type=str, default=None)
+    parser.add_argument("--device", type=str, default=CONFIG["device"])
+    parser.add_argument("--num_workers", type=int, default=CONFIG["num_workers"])
+    parser.add_argument("--output_dir", type=str, default=CONFIG["output_dir"])
+    parser.add_argument("--image_dir", type=str, default=CONFIG["image_dir"], help="Path to image directory (overrides jsonl paths)")
+    parser.add_argument("--wandb", action="store_true", default=CONFIG["wandb"])
+    parser.add_argument("--plot_loss", action="store_true", default=CONFIG["plot_loss"])
+    parser.add_argument("--run_name", type=str, default=CONFIG["run_name"])
     
     return parser.parse_args()
+
+def plot_training_curve(history, save_dir):
+    """绘制并保存训练曲线"""
+    try:
+        epochs = range(1, len(history["train_loss"]) + 1)
+        
+        plt.figure(figsize=(12, 5))
+        
+        # Subplot 1: Loss
+        plt.subplot(1, 2, 1)
+        plt.plot(epochs, history["train_loss"], label="Train Loss", marker='o')
+        plt.plot(epochs, history["val_loss"], label="Val Loss", marker='o')
+        plt.title("Loss Curve")
+        plt.xlabel("Epoch")
+        plt.ylabel("Loss")
+        plt.legend()
+        plt.grid(True)
+        
+        # Subplot 2: Accuracy
+        plt.subplot(1, 2, 2)
+        plt.plot(epochs, history["train_acc"], label="Train Acc", marker='o')
+        plt.plot(epochs, history["val_acc"], label="Val Acc", marker='o')
+        plt.title("Accuracy Curve")
+        plt.xlabel("Epoch")
+        plt.ylabel("Accuracy")
+        plt.legend()
+        plt.grid(True)
+        
+        plt.tight_layout()
+        plt.savefig(save_dir / "training_curve.png")
+        plt.close()
+        logger.info(f"Loss curve saved to {save_dir / 'training_curve.png'}")
+    except Exception as e:
+        logger.error(f"Failed to plot curve: {e}")
 
 # ==============================================================================
 # 核心循环
@@ -180,7 +260,17 @@ def validate(model, dataloader, criterion, device):
 
 def main():
     args = parse_args()
-    
+
+    # ==============================================================================
+    # 硬件加速 (RTX 3090/4090 必须开启)
+    # 原因: CLIP ViT-L 在 FP32 下极慢 (3.6s/it)，开启 TF32 调用 Tensor Cores 后提速至 0.06s/it。
+    # ==============================================================================
+    if torch.cuda.is_available():
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.allow_tf32 = True
+        torch.backends.cudnn.benchmark = True
+        logger.info("⚡ Hardware acceleration enabled: TF32 + CuDNN Benchmark")
+        
     # Setup Output Dir
     run_id = args.run_name or datetime.now().strftime("%Y%m%d_%H%M%S")
     save_dir = Path(args.output_dir) / run_id
@@ -194,10 +284,18 @@ def main():
     
     # 1. Dataset
     logger.info("Loading dataset...")
+    
+    # Check if resized image dir exists, otherwise fallback to None (use jsonl paths)
+    image_dir = args.image_dir
+    if image_dir and not os.path.exists(image_dir):
+        logger.warning(f"Image directory {image_dir} not found. Falling back to original paths in JSONL.")
+        image_dir = None
+        
     full_dataset = AestheticDataset(
         data_path=args.data_path, 
         target_size=224, 
-        model_name=args.vision_model
+        model_name=args.vision_model,
+        image_dir=image_dir
     )
     
     # Split
@@ -211,7 +309,8 @@ def main():
         shuffle=True, 
         num_workers=args.num_workers,
         collate_fn=collate_fn,
-        pin_memory=True
+        pin_memory=True,
+        persistent_workers=(args.num_workers > 0) # Avoid respawning workers on Windows
     )
     
     val_loader = DataLoader(
@@ -220,7 +319,8 @@ def main():
         shuffle=False, 
         num_workers=args.num_workers,
         collate_fn=collate_fn,
-        pin_memory=True
+        pin_memory=True,
+        persistent_workers=(args.num_workers > 0)
     )
     
     logger.info(f"Train samples: {train_size}, Val samples: {val_size}")
@@ -232,6 +332,13 @@ def main():
         vision_model_name=args.vision_model
     )
     model = AestheticScorer(config)
+    
+    # Enable Gradient Checkpointing to save VRAM
+    # CLIP's vision model supports it
+    if hasattr(model.clip.vision_model, "gradient_checkpointing_enable"):
+        model.clip.vision_model.gradient_checkpointing_enable()
+        logger.info("✅ Gradient Checkpointing enabled for Vision Model (VRAM saving)")
+        
     model.to(args.device)
     
     # 3. Optimizer
@@ -254,6 +361,7 @@ def main():
     
     # 5. Loop
     best_val_acc = 0.0
+    history = {"train_loss": [], "train_acc": [], "val_loss": [], "val_acc": []}
     
     for epoch in range(1, args.epochs + 1):
         logger.info(f"Epoch {epoch}/{args.epochs}")
@@ -267,6 +375,12 @@ def main():
         # Val
         val_loss, val_acc = validate(model, val_loader, criterion, args.device)
         logger.info(f"Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2%}")
+        
+        # Record History
+        history["train_loss"].append(train_loss)
+        history["train_acc"].append(train_acc)
+        history["val_loss"].append(val_loss)
+        history["val_acc"].append(val_acc)
         
         # Log
         if args.wandb:
@@ -286,6 +400,10 @@ def main():
             
         # Save Last
         torch.save(model.state_dict(), save_dir / "last_model.pth")
+    
+    # Plot Curve
+    if args.plot_loss:
+        plot_training_curve(history, save_dir)
         
     logger.info("Training completed.")
     if args.wandb:
