@@ -87,9 +87,9 @@ MODEL_ROUTING_WEIGHTS = [
 # 并发限制 (Provider-Specific Concurrency Limits)
 # 针对不同模型的性能特点设置独立的并发上限
 PROVIDER_CONCURRENCY = {
-    "seedream_4_5": 32,      # 高吞吐 (IPM 500)，但考虑到本地网络带宽，32是比较稳妥的上限
-    "seedream": 16,          # Seedream 3.0
-    "gemini_3_pro_image": 4  # 限制较严 (QPM 100, TPM限制)，且Token消耗大，需保守
+    "seedream_4_5": 64,      # 降低并发以避免 Connection Reset / Incomplete Read
+    "seedream": 16,           # 降低并发
+    "gemini_3_pro_image": 4  # 保持不变
 }
 DEFAULT_CONCURRENCY = 8      # 未知模型的默认并发数 
 
@@ -154,6 +154,7 @@ async def process_prompt(
     """
     处理单个 Prompt 的完整流程：生成 A 和 B。
     """
+    try:
         prompt = prompt_data.get("prompt")
         prompt_id = prompt_data.get("id", str(uuid.uuid4())[:8])
         
@@ -163,77 +164,81 @@ async def process_prompt(
             weights=[w[1] for w in MODEL_ROUTING_WEIGHTS]
         )[0]
         
-    # 获取对应的信号量，如果没有则使用默认的（这里假设有个 default key 或者临时创建一个）
-    # 注意：为了简单，我们在 main 里会确保所有 keys 都有 semaphore
-    # 如果 provider_name 不在配置里，回退到 seedream 的配置或默认值
-    semaphore = semaphores.get(provider_name)
-    if not semaphore:
-        # Fallback (理论上不应该发生，除非配置漏了)
-        semaphore = semaphores.get("default", asyncio.Semaphore(1))
+        # 获取对应的信号量，如果没有则使用默认的（这里假设有个 default key 或者临时创建一个）
+        # 注意：为了简单，我们在 main 里会确保所有 keys 都有 semaphore
+        # 如果 provider_name 不在配置里，回退到 seedream 的配置或默认值
+        semaphore = semaphores.get(provider_name)
+        if not semaphore:
+            # Fallback (理论上不应该发生，除非配置漏了)
+            semaphore = semaphores.get("default", asyncio.Semaphore(1))
 
-    async with semaphore:
-        client = clients.get(provider_name)
-        if not client:
-            logger.error(f"找不到模型客户端: {provider_name}")
-            pbar.update(1)
-            return
+        async with semaphore:
+            client = clients.get(provider_name)
+            if not client:
+                logger.error(f"找不到模型客户端: {provider_name}")
+                pbar.update(1)
+                return
 
-        # 2. 随机选择本组的尺寸 (A和B保持一致)
-        # 差异化策略: Seedream 全开，Gemini 保守
-        if "gemini" in provider_name:
-            valid_ratios = GEMINI_SAFE_RATIOS
-        else:
-            valid_ratios = list(ASPECT_RATIO_MAP.keys())
+            # 2. 随机选择本组的尺寸 (A和B保持一致)
+            # 差异化策略: Seedream 全开，Gemini 保守
+            if "gemini" in provider_name:
+                valid_ratios = GEMINI_SAFE_RATIOS
+            else:
+                valid_ratios = list(ASPECT_RATIO_MAP.keys())
+                
+            ratio_key = random.choice(valid_ratios)
             
-        ratio_key = random.choice(valid_ratios)
-        
-        width, height = ASPECT_RATIO_MAP[ratio_key]
-        
-        # --- 针对 Gemini 的尺寸减半优化 (Save Tokens) ---
-        # Seedream 使用 2K 分辨率，Gemini 使用 1K 分辨率
-        if "gemini" in provider_name:
-            width = width // 2
-            height = height // 2
-        
-        # 3. 定义文件名
-        # 命名包含模型名和尺寸，方便后续分析
-        # 格式: {prompt_id}_{provider}_{ratio}_{variant}.png
-        # 注意文件名中不要包含冒号等非法字符，ratio_key 如 "16:9" 需替换
-        safe_ratio = ratio_key.replace(":", "-")
-        filename_a = RAW_IMAGES_DIR / f"{prompt_id}_{provider_name}_{safe_ratio}_A.png"
-        filename_b = RAW_IMAGES_DIR / f"{prompt_id}_{provider_name}_{safe_ratio}_B.png"
-        
-        # 4. 生成 Image A
-        success_a = await generate_single_image(
-            client, provider_name, prompt, ratio_key, width, height, filename_a
-        )
-        if not success_a:
-            pbar.update(1)
-            return
+            width, height = ASPECT_RATIO_MAP[ratio_key]
+            
+            # --- 针对 Gemini 的尺寸减半优化 (Save Tokens) ---
+            # Seedream 使用 2K 分辨率，Gemini 使用 1K 分辨率
+            if "gemini" in provider_name:
+                width = width // 2
+                height = height // 2
+            
+            # 3. 定义文件名
+            # 命名包含模型名和尺寸，方便后续分析
+            # 格式: {prompt_id}_{provider}_{ratio}_{variant}.png
+            # 注意文件名中不要包含冒号等非法字符，ratio_key 如 "16:9" 需替换
+            safe_ratio = ratio_key.replace(":", "-")
+            filename_a = RAW_IMAGES_DIR / f"{prompt_id}_{provider_name}_{safe_ratio}_A.png"
+            filename_b = RAW_IMAGES_DIR / f"{prompt_id}_{provider_name}_{safe_ratio}_B.png"
+            
+            # 4. 生成 Image A
+            success_a = await generate_single_image(
+                client, provider_name, prompt, ratio_key, width, height, filename_a
+            )
+            if not success_a:
+                pbar.update(1)
+                return
 
-        # 5. 生成 Image B (同源对抗，使用同一个 client)
-        success_b = await generate_single_image(
-            client, provider_name, prompt, ratio_key, width, height, filename_b
-        )
-        if not success_b:
+            # 5. 生成 Image B (同源对抗，使用同一个 client)
+            success_b = await generate_single_image(
+                client, provider_name, prompt, ratio_key, width, height, filename_b
+            )
+            if not success_b:
+                pbar.update(1)
+                return
+                
+            # 6. 记录成功结果
+            pair_record = GeneratedPair(
+                prompt_id=prompt_id,
+                prompt=prompt,
+                width=width,
+                height=height,
+                image_a_path=str(filename_a),
+                image_b_path=str(filename_b),
+                model_name=provider_name,
+                timestamp=time.time()
+            )
+            
+            with open(OUTPUT_METADATA_FILE, "a", encoding="utf-8") as f:
+                f.write(pair_record.model_dump_json() + "\n")
+                
             pbar.update(1)
-            return
             
-        # 6. 记录成功结果
-        pair_record = GeneratedPair(
-            prompt_id=prompt_id,
-            prompt=prompt,
-            width=width,
-            height=height,
-            image_a_path=str(filename_a),
-            image_b_path=str(filename_b),
-            model_name=provider_name,
-            timestamp=time.time()
-        )
-        
-        with open(OUTPUT_METADATA_FILE, "a", encoding="utf-8") as f:
-            f.write(pair_record.model_dump_json() + "\n")
-            
+    except Exception as e:
+        logger.error(f"处理 Prompt 异常: {e}")
         pbar.update(1)
 
 async def main():

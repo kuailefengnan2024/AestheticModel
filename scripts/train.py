@@ -1,6 +1,25 @@
 """
 模型训练脚本 (Model Training Script)
 
+性能优化提示 (Performance Tips):
+1. 硬件加速 (Hardware):
+   - 必须开启 TF32 (TensorFloat-32)，否则 RTX 3090/4090 上 CLIP ViT-L 前向极慢 (3.6s vs 0.06s)。
+   - 本脚本已自动检测并开启 `allow_tf32` 和 `cudnn.benchmark`。
+
+2. 显存管理 (VRAM):
+   - 必须开启 Gradient Checkpointing，否则 ViT-L 极易爆 24GB 显存，导致 Swap Thrashing (速度骤降 30x)。
+   - 推荐 Batch Size <= 12 (为了稳定默认设为 8)。
+   - 本脚本已默认开启 `gradient_checkpointing_enable`。
+
+3. 数据加载 (DataLoader):
+   - Windows 下必须设置 `num_workers=0`，否则 Spawn 进程开销巨大且会导致代码重复执行。
+   - Linux 下可设置 `num_workers=4`。
+
+⚠️ 重要提示:
+   - 在 Windows/IDE 中关闭终端窗口并不会真正杀死训练进程！
+   - 进程仍会在后台占用显存。
+   - 必须打开 [任务管理器] -> [详细信息] -> 右键列头启用 [专用 GPU 内存] -> 找到 python.exe 且显存占用高的进程 -> [结束任务]。
+
 功能:
 1.  加载数据集 (Train/Val Split)。
 2.  初始化双塔审美模型 (AestheticScorer)。
@@ -54,13 +73,15 @@ CONFIG = {
     
     # Model
     "vision_model": "openai/clip-vit-large-patch14",
+    "freeze_backbone": True, # CRITICAL: Freeze CLIP for small dataset (<10k pairs)
+    "dropout": 0.5, # High dropout to prevent overfitting
     
     # Training
-    "batch_size": 8, # Reduced from 16 to avoid VRAM thrashing (24GB limit)
+    "batch_size": 32, # Safe to increase if backbone is frozen (grads only on heads)
     "epochs": 50,
-    "lr": 1e-5,
-    "head_lr": 1e-4,
-    "weight_decay": 0.01,
+    "lr": 1e-5, # Unused for backbone if frozen
+    "head_lr": 1e-3, # Higher LR for heads
+    "weight_decay": 0.1, # Strong regularization
     "grad_clip": 1.0,
     
     # Loss
@@ -92,6 +113,8 @@ def parse_args():
     
     # Model
     parser.add_argument("--vision_model", type=str, default=CONFIG["vision_model"])
+    parser.add_argument("--freeze_backbone", action="store_true", default=CONFIG["freeze_backbone"])
+    parser.add_argument("--dropout", type=float, default=CONFIG["dropout"])
 
     # Training
     parser.add_argument("--batch_size", type=int, default=CONFIG["batch_size"])
@@ -329,15 +352,19 @@ def main():
     logger.info("Initializing model...")
     # 这里不需要传 pretrained="openai"，因为 transformers 用 path 自动识别
     config = ModelConfig(
-        vision_model_name=args.vision_model
+        vision_model_name=args.vision_model,
+        freeze_backbone=args.freeze_backbone,
+        dropout=args.dropout
     )
     model = AestheticScorer(config)
     
-    # Enable Gradient Checkpointing to save VRAM
-    # CLIP's vision model supports it
-    if hasattr(model.clip.vision_model, "gradient_checkpointing_enable"):
-        model.clip.vision_model.gradient_checkpointing_enable()
-        logger.info("✅ Gradient Checkpointing enabled for Vision Model (VRAM saving)")
+    # Enable Gradient Checkpointing to save VRAM (only if backbone is trainable)
+    if not args.freeze_backbone:
+        if hasattr(model.clip.vision_model, "gradient_checkpointing_enable"):
+            model.clip.vision_model.gradient_checkpointing_enable()
+            logger.info("✅ Gradient Checkpointing enabled for Vision Model (VRAM saving)")
+    else:
+        logger.info("❄️ Backbone is frozen. Gradient Checkpointing disabled (not needed).")
         
     model.to(args.device)
     

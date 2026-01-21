@@ -37,10 +37,10 @@ from config.settings import LLM_API_CONFIGS
 # ================= 配置区 =================
 SEED_FILE_PATH = "data/raw_prompts/byteartist_prompts.jsonl"
 OUTPUT_FILE_PATH = "data/image_prompts_expanded.jsonl"
-TARGET_COUNT = 2000      # 目标总数
+TARGET_COUNT = 20000      # 目标总数
 BATCH_SIZE = 10         # 每次生成的数量
 SEED_SAMPLE_SIZE = 16   # 每次参考的种子数量 (KV Context)
-MAX_CONCURRENT_REQUESTS = 64 # 最大并发请求数 (防止 Rate Limit)
+MAX_CONCURRENT_REQUESTS = 256 # 最大并发请求数 (防止 Rate Limit)
 
 # 定义生成策略 (Personas)
 STRATEGIES = {

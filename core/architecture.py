@@ -33,11 +33,22 @@ class AestheticScorer(nn.Module):
         self.vision_dim = self.clip.config.projection_dim
         self.text_dim = self.clip.config.projection_dim
         
+        # Freezing Backbone (Optional)
+        if getattr(config, "freeze_backbone", False):
+            print("❄️ Freezing CLIP Backbone (Vision + Text)...")
+            for param in self.clip.parameters():
+                param.requires_grad = False
+            # Ensure it stays in eval mode (disable dropout/batchnorm updates in backbone)
+            self.clip.eval()
+        
         # 2. Heads (Multi-Task)
         self.heads = nn.ModuleDict()
         
         # 定义哪些 Head 需要 Text 特征
         self.multimodal_heads = ["total", "text_alignment"]
+        
+        # Dropout rate
+        dropout_rate = getattr(config, "dropout", 0.1)
         
         for head_name in config.heads:
             # 决定输入维度
@@ -50,12 +61,13 @@ class AestheticScorer(nn.Module):
                 nn.Linear(input_dim, config.mlp_hidden_dim),
                 nn.LayerNorm(config.mlp_hidden_dim),
                 nn.GELU(),
-                nn.Dropout(0.1),
+                nn.Dropout(dropout_rate),
                 nn.Linear(config.mlp_hidden_dim, 1) # Scalar Score
             )
             
         # Log
         print(f"Model Initialized. Vision Dim: {self.vision_dim}, Text Dim: {self.text_dim}")
+        print(f"Dropout Rate: {dropout_rate}, Backbone Frozen: {getattr(config, 'freeze_backbone', False)}")
 
     def forward(self, pixel_values, input_ids=None, attention_mask=None):
         """
@@ -100,4 +112,6 @@ class ModelConfig:
         self.vision_model_name = "openai/clip-vit-large-patch14"
         self.mlp_hidden_dim = 1024
         self.heads = ["total", "composition", "color", "lighting"]
+        self.freeze_backbone = False
+        self.dropout = 0.1
         self.__dict__.update(kwargs)
