@@ -172,10 +172,23 @@ class AestheticDataset(Dataset):
         
         # 3. 处理分数 (Labels)
         scores = item["scores"]
-        dims = ["total", "composition", "color", "lighting"]
+        dims = ["total", "composition", "color", "atmosphere", "text_alignment", "coherence"]
         
-        winner_scores = [scores[d]["winner"] for d in dims]
-        loser_scores = [scores[d]["loser"] for d in dims]
+        winner_scores = []
+        loser_scores = []
+        
+        for d in dims:
+            # 兼容性：如果旧数据没有新维度，返回 -1.0 (mask 标记)
+            # 注意：JSONL读取后 scores[d] 可能不存在，或者存在但为 None
+            s_win = scores.get(d, {}).get("winner", -1.0)
+            s_lose = scores.get(d, {}).get("loser", -1.0)
+            
+            # 双重保险：如果是 None 也转为 -1.0
+            if s_win is None: s_win = -1.0
+            if s_lose is None: s_lose = -1.0
+                
+            winner_scores.append(float(s_win))
+            loser_scores.append(float(s_lose))
         
         # 4. 处理文本 (Tokenize)
         # padding="max_length", truncation=True, return_tensors="pt"

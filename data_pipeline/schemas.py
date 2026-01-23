@@ -29,7 +29,9 @@ class Scores(BaseModel):
     total: ScoreDetail
     composition: ScoreDetail
     color: ScoreDetail
-    lighting: ScoreDetail
+    atmosphere: ScoreDetail
+    text_alignment: Optional[ScoreDetail] = None
+    coherence: Optional[ScoreDetail] = None
     # 可根据需要添加更多维度，如 'creativity', 'text_match' 等
 
 # ==============================================================================

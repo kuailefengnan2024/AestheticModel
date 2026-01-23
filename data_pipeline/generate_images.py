@@ -87,7 +87,7 @@ MODEL_ROUTING_WEIGHTS = [
 # 并发限制 (Provider-Specific Concurrency Limits)
 # 针对不同模型的性能特点设置独立的并发上限
 PROVIDER_CONCURRENCY = {
-    "seedream_4_5": 64,      # 降低并发以避免 Connection Reset / Incomplete Read
+    "seedream_4_5": 128,      # 降低并发以避免 Connection Reset / Incomplete Read
     "seedream": 16,           # 降低并发
     "gemini_3_pro_image": 4  # 保持不变
 }

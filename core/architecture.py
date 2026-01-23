@@ -93,8 +93,8 @@ class AestheticScorer(nn.Module):
         for name, head in self.heads.items():
             if name in self.multimodal_heads:
                 if t_emb is None:
-                    # 如果没有提供 text，暂时报错
-                    raise ValueError(f"Head '{name}' requires text input.")
+                    # 如果没有提供 text，跳过该 Head 的输出 (Blind Scoring Mode)
+                    continue
                 
                 # Concat
                 combined = torch.cat([v_emb, t_emb], dim=1) # [B, V+T]
@@ -111,7 +111,8 @@ class ModelConfig:
         # 默认指向 HF Hub ID，也可以改为本地路径 "models/clip-vit-large-patch14"
         self.vision_model_name = "openai/clip-vit-large-patch14"
         self.mlp_hidden_dim = 1024
-        self.heads = ["total", "composition", "color", "lighting"]
+        # Updated heads list
+        self.heads = ["total", "composition", "color", "atmosphere", "text_alignment", "coherence"]
         self.freeze_backbone = False
         self.dropout = 0.1
         self.__dict__.update(kwargs)

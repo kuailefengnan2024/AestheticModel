@@ -58,9 +58,11 @@ The second image in the input list is Image B.
 请根据以下维度，对每一张图片进行独立打分（1-10分，1分最低，10分最高）：
 
 1.  **total (总分):** 对图片整体质量和吸引力的综合评价。
-2.  **composition (构图):** 元素的布局、平衡感、视觉引导线是否和谐且有冲击力。
+2.  **composition (构图):** 主元素是否明确清晰 主次清晰 画面构图设计感 元素的布局、平衡感、视觉引导线是否和谐。
 3.  **color (色彩):** 色彩搭配是否协调、有美感，是否能有效传达情感或主题。
-4.  **lighting (光影):** 光线的运用是否为画面增添了层次、氛围和质感。
+4.  **atmosphere (氛围):** 画面氛围是否明确传达出了情感和风格？光影、色彩与构图是否共同营造了沉浸感？
+5.  **text_alignment (图文一致性):** 图片内容是否忠实还原了 Prompt 的描述？画面细节和prompt描述是否一致？
+6.  **coherence (逻辑性):** 画面是否符合物理逻辑？是否存在乱码、扭曲肢体、结构错乱、多余手指？信息层级是否清晰？
 
 **输出格式要求:**
 
@@ -71,13 +73,17 @@ The second image in the input list is Image B.
         "total": <score>,
         "composition": <score>,
         "color": <score>,
-        "lighting": <score>
+        "atmosphere": <score>,
+        "text_alignment": <score>,
+        "coherence": <score>
     }},
     "image_b": {{
         "total": <score>,
         "composition": <score>,
         "color": <score>,
-        "lighting": <score>
+        "atmosphere": <score>,
+        "text_alignment": <score>,
+        "coherence": <score>
     }},
     "reasoning": "请在这里用一句话简要说明你判定优劣的核心理由。"
 }}
@@ -180,11 +186,13 @@ async def judge_single_pair(semaphore, client, pair_record: GeneratedPair, pbar)
             # 此时 scores.color.winner 应该填 B 的色彩分，scores.color.loser 填 A 的色彩分
             
             final_scores = {}
-            dimensions = ["total", "composition", "color", "lighting"]
+            dimensions = ["total", "composition", "color", "atmosphere", "text_alignment", "coherence"]
             
             for dim in dimensions:
-                val_a = float(scores_a.get(dim, 0))
-                val_b = float(scores_b.get(dim, 0))
+                # 兼容性处理：如果 VLM 没返回新维度的分，使用 -1 作为默认值
+                # 实际上由于我们改了 Prompt，新打分的数据一定会有，旧数据在加载时处理
+                val_a = float(scores_a.get(dim, -1.0))
+                val_b = float(scores_b.get(dim, -1.0))
                 
                 final_scores[dim] = ScoreDetail(
                     winner=val_a if is_a_winner else val_b,
