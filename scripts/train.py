@@ -73,15 +73,15 @@ CONFIG = {
     
     # Model
     "vision_model": "openai/clip-vit-large-patch14",
-    "freeze_backbone": True, # CRITICAL: Freeze CLIP for small dataset (<10k pairs)
-    "dropout": 0.5, # High dropout to prevent overfitting
+    "freeze_backbone": False, # Unfreeze for full fine-tuning (20k+ data)
+    "dropout": 0.1, # Standard dropout for fine-tuning
     
     # Training
-    "batch_size": 32, # Safe to increase if backbone is frozen (grads only on heads)
-    "epochs": 50,
-    "lr": 1e-5, # Unused for backbone if frozen
-    "head_lr": 1e-3, # Higher LR for heads
-    "weight_decay": 0.1, # Strong regularization
+    "batch_size": 8, # Keep small for full fine-tuning (VRAM hungry)
+    "epochs": 20, # 20k data * 20 epochs is sufficient
+    "lr": 1e-6, # Very low LR for backbone
+    "head_lr": 1e-4, # Higher LR for heads
+    "weight_decay": 0.05,
     "grad_clip": 1.0,
     
     # Loss
