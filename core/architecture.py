@@ -12,7 +12,7 @@
 """
 import torch
 import torch.nn as nn
-from transformers import CLIPModel, CLIPConfig
+from transformers import CLIPModel, AltCLIPModel
 
 class AestheticScorer(nn.Module):
     def __init__(self, config):
@@ -23,23 +23,27 @@ class AestheticScorer(nn.Module):
         super().__init__()
         self.config = config
         
-        # 1. Load CLIP (Vision + Text)
-        print(f"Loading CLIP Model (Transformers): {config.vision_model_name}...")
+        # 1. Load Backbone (Vision + Text)
+        print(f"Loading Backbone Model: {config.vision_model_name}...")
         
-        # 从预训练加载 (支持本地路径或HF Hub ID)
-        self.clip = CLIPModel.from_pretrained(config.vision_model_name)
-        
+        if "AltCLIP" in config.vision_model_name:
+            self.backbone = AltCLIPModel.from_pretrained(config.vision_model_name)
+            self.is_altclip = True
+        else:
+            self.backbone = CLIPModel.from_pretrained(config.vision_model_name)
+            self.is_altclip = False
+            
         # 自动获取维度
-        self.vision_dim = self.clip.config.projection_dim
-        self.text_dim = self.clip.config.projection_dim
+        self.vision_dim = self.backbone.config.projection_dim
+        self.text_dim = self.backbone.config.projection_dim
         
         # Freezing Backbone (Optional)
         if getattr(config, "freeze_backbone", False):
-            print("❄️ Freezing CLIP Backbone (Vision + Text)...")
-            for param in self.clip.parameters():
+            print("❄️ Freezing Backbone (Vision + Text)...")
+            for param in self.backbone.parameters():
                 param.requires_grad = False
-            # Ensure it stays in eval mode (disable dropout/batchnorm updates in backbone)
-            self.clip.eval()
+            # Ensure it stays in eval mode
+            self.backbone.eval()
         
         # 2. Heads (Multi-Task)
         self.heads = nn.ModuleDict()
@@ -77,16 +81,20 @@ class AestheticScorer(nn.Module):
             attention_mask: (Optional, for text encoder)
         """
         # 1. Vision Features
-        # get_image_features 返回 projection 后的特征 (normalized)
-        v_emb = self.clip.get_image_features(pixel_values=pixel_values) # [B, proj_dim]
+        if self.is_altclip:
+            # AltCLIP API: get_image_features
+            v_emb = self.backbone.get_image_features(pixel_values=pixel_values)
+        else:
+            v_emb = self.backbone.get_image_features(pixel_values=pixel_values) 
         
         # 2. Text Features (Optional)
         t_emb = None
         if input_ids is not None:
-            # get_text_features 返回 projection 后的特征 (normalized)
-            # 注意: transformers 的 text encoder 需要 attention_mask (padding mask)
-            # 如果 Dataset 没传 mask，通常 0 是 padding
-            t_emb = self.clip.get_text_features(input_ids=input_ids, attention_mask=attention_mask) # [B, proj_dim]
+            if self.is_altclip:
+                # AltCLIP API: get_text_features
+                t_emb = self.backbone.get_text_features(input_ids=input_ids, attention_mask=attention_mask)
+            else:
+                t_emb = self.backbone.get_text_features(input_ids=input_ids, attention_mask=attention_mask)
         
         # 3. Multi-Head Prediction
         outputs = {}
@@ -108,8 +116,8 @@ class AestheticScorer(nn.Module):
 # 配置类
 class ModelConfig:
     def __init__(self, **kwargs):
-        # 默认指向 HF Hub ID，也可以改为本地路径 "models/clip-vit-large-patch14"
-        self.vision_model_name = "openai/clip-vit-large-patch14"
+        # 默认指向 BAAI/AltCLIP (中英双语优化)
+        self.vision_model_name = "BAAI/AltCLIP"
         self.mlp_hidden_dim = 1024
         # Updated heads list
         self.heads = ["total", "composition", "color", "atmosphere", "text_alignment", "coherence"]

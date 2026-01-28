@@ -27,7 +27,7 @@ import numpy as np
 from PIL import Image
 from torch.utils.data import Dataset
 from torchvision.transforms import functional as F
-from transformers import CLIPTokenizer
+from transformers import CLIPTokenizer, AltCLIPProcessor
 
 from utils.logger import logger
 
@@ -86,28 +86,34 @@ class DynamicResizePad:
         }
 
 class AestheticDataset(Dataset):
-    def __init__(self, data_path: str, target_size: int = 224, model_name: str = "openai/clip-vit-large-patch14", image_dir: Optional[str] = None):
+    def __init__(self, data_path: str, target_size: int = 224, model_name: str = "BAAI/AltCLIP", image_dir: Optional[str] = None):
         """
         初始化数据集。
 
         Args:
             data_path: jsonl 文件路径
             target_size: 图片输入尺寸 (默认 224 for CLIP)
-            model_name: CLIP 模型名称 (本地路径或HF Hub ID)
-            image_dir: (可选) 图片根目录覆盖。如果提供，将忽略 JSONL 中的绝对路径，
-                       只使用文件名在 image_dir 下查找图片。用于读取预缩放的小图。
+            model_name: 模型名称 (默认为 BAAI/AltCLIP)
+            image_dir: (可选) 图片根目录覆盖。
         """
         self.data_path = Path(data_path)
         self.target_size = target_size
         self.image_dir_override = Path(image_dir) if image_dir else None
         
-        # 初始化 Tokenizer (Transformers)
-        logger.info(f"Loading Tokenizer: {model_name}...")
-        self.tokenizer = CLIPTokenizer.from_pretrained(model_name)
+        # 初始化 Processor (AltCLIP 使用 Processor 同时处理文本和图片预处理逻辑)
+        # 但我们这里自定义了图片预处理 (DynamicResizePad)，所以主要用它来处理文本
+        logger.info(f"Loading Processor: {model_name}...")
+        try:
+            self.processor = AltCLIPProcessor.from_pretrained(model_name)
+            self.use_altclip = True
+        except Exception:
+            logger.warning(f"Failed to load AltCLIPProcessor for {model_name}, falling back to CLIPTokenizer.")
+            self.tokenizer = CLIPTokenizer.from_pretrained(model_name)
+            self.use_altclip = False
         
         # 初始化预处理器
         self.preprocessor = DynamicResizePad(target_size=target_size)
-
+        
         if self.image_dir_override:
             logger.info(f"Using Image Directory Override: {self.image_dir_override}")
         
@@ -191,14 +197,23 @@ class AestheticDataset(Dataset):
             loser_scores.append(float(s_lose))
         
         # 4. 处理文本 (Tokenize)
-        # padding="max_length", truncation=True, return_tensors="pt"
-        text_inputs = self.tokenizer(
-            item["prompt"], 
-            padding="max_length", 
-            truncation=True, 
-            max_length=77, 
-            return_tensors="pt"
-        )
+        # AltCLIP Processor handles text tokenization (padding, truncation, etc.)
+        if self.use_altclip:
+            text_inputs = self.processor(
+                text=item["prompt"], 
+                padding="max_length", 
+                truncation=True, 
+                max_length=77, 
+                return_tensors="pt"
+            )
+        else:
+            text_inputs = self.tokenizer(
+                item["prompt"], 
+                padding="max_length", 
+                truncation=True, 
+                max_length=77, 
+                return_tensors="pt"
+            )
         
         input_ids = text_inputs["input_ids"].squeeze(0)
         attention_mask = text_inputs["attention_mask"].squeeze(0)

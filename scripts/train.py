@@ -72,7 +72,7 @@ CONFIG = {
     "val_split": 0.1,
     
     # Model
-    "vision_model": "openai/clip-vit-large-patch14",
+    "vision_model": "BAAI/AltCLIP", # Switch to AltCLIP for multilingual support
     "freeze_backbone": False, # Unfreeze for full fine-tuning (20k+ data)
     "dropout": 0.1, # Standard dropout for fine-tuning
     
@@ -360,8 +360,11 @@ def main():
     
     # Enable Gradient Checkpointing to save VRAM (only if backbone is trainable)
     if not args.freeze_backbone:
-        if hasattr(model.clip.vision_model, "gradient_checkpointing_enable"):
-            model.clip.vision_model.gradient_checkpointing_enable()
+        # AltCLIP/CLIP structure might differ, usually it's model.backbone.vision_model
+        # But let's handle both just in case
+        vision_model = getattr(model.backbone, "vision_model", None)
+        if vision_model and hasattr(vision_model, "gradient_checkpointing_enable"):
+            vision_model.gradient_checkpointing_enable()
             logger.info("✅ Gradient Checkpointing enabled for Vision Model (VRAM saving)")
     else:
         logger.info("❄️ Backbone is frozen. Gradient Checkpointing disabled (not needed).")
