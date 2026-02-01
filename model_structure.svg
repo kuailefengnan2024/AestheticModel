@@ -16,23 +16,23 @@
 </g>
 <g id="clust2" class="cluster">
 <title>cluster_encoders</title>
-<polygon fill="none" stroke="blue" stroke-dasharray="5,2" points="178.25,-300 178.25,-478 353.25,-478 353.25,-300 178.25,-300"/>
-<text text-anchor="middle" x="265.75" y="-460.7" font-family="Times New Roman,serif" font-size="14.00">Encoders (Frozen/Finemode)</text>
+<polygon fill="none" stroke="red" stroke-dasharray="5,2" points="178.25,-300 178.25,-478 353.25,-478 353.25,-300 178.25,-300"/>
+<text text-anchor="middle" x="265.75" y="-460.7" font-family="Times New Roman,serif" font-size="14.00" fill="red">Encoders (AltCLIP - Trainable)</text>
 </g>
 <g id="clust3" class="cluster">
 <title>cluster_vision_proj</title>
-<polygon fill="none" stroke="orange" stroke-dasharray="5,2" points="442.5,-391 442.5,-498 1343.75,-498 1343.75,-391 442.5,-391"/>
-<text text-anchor="middle" x="893.12" y="-480.7" font-family="Times New Roman,serif" font-size="14.00">Vision Projector</text>
+<polygon fill="none" stroke="red" stroke-dasharray="5,2" points="442.5,-391 442.5,-498 1343.75,-498 1343.75,-391 442.5,-391"/>
+<text text-anchor="middle" x="893.12" y="-480.7" font-family="Times New Roman,serif" font-size="14.00" fill="red">AltCLIP Vision Projection (Trainable)</text>
 </g>
 <g id="clust4" class="cluster">
 <title>cluster_text_proj</title>
-<polygon fill="none" stroke="orange" stroke-dasharray="5,2" points="442.5,-276 442.5,-383 1343.75,-383 1343.75,-276 442.5,-276"/>
-<text text-anchor="middle" x="893.12" y="-365.7" font-family="Times New Roman,serif" font-size="14.00">Text Projector</text>
+<polygon fill="none" stroke="red" stroke-dasharray="5,2" points="442.5,-276 442.5,-383 1343.75,-383 1343.75,-276 442.5,-276"/>
+<text text-anchor="middle" x="893.12" y="-365.7" font-family="Times New Roman,serif" font-size="14.00" fill="red">AltCLIP Text Projection (Trainable)</text>
 </g>
 <g id="clust5" class="cluster">
 <title>cluster_heads</title>
-<polygon fill="none" stroke="green" stroke-dasharray="5,2" points="1639.75,-8 1639.75,-769 2167.95,-769 2167.95,-8 1639.75,-8"/>
-<text text-anchor="middle" x="1903.85" y="-751.7" font-family="Times New Roman,serif" font-size="14.00">Multi&#45;Head Prediction (MLP)</text>
+<polygon fill="none" stroke="red" stroke-dasharray="5,2" points="1639.75,-8 1639.75,-769 2167.95,-769 2167.95,-8 1639.75,-8"/>
+<text text-anchor="middle" x="1903.85" y="-751.7" font-family="Times New Roman,serif" font-size="14.00" fill="red">Multi&#45;Head Prediction (MLP - Trainable)</text>
 </g>
 <!-- Image -->
 <g id="node1" class="node">
@@ -46,9 +46,9 @@
 <!-- VisionEncoder -->
 <g id="node3" class="node">
 <title>VisionEncoder</title>
-<polygon fill="#bbdefb" stroke="black" points="319.75,-445.5 210.75,-445.5 210.75,-398.5 319.75,-398.5 319.75,-445.5"/>
-<text text-anchor="middle" x="265.25" y="-428.2" font-family="Segoe UI" font-size="14.00">Vision Encoder</text>
-<text text-anchor="middle" x="265.25" y="-408.7" font-family="Segoe UI" font-size="14.00">ViT&#45;L&#45;14</text>
+<polygon fill="#ffcdd2" stroke="red" points="319.75,-445.5 210.75,-445.5 210.75,-398.5 319.75,-398.5 319.75,-445.5"/>
+<text text-anchor="middle" x="265.25" y="-428.2" font-family="Segoe UI" font-size="14.00" fill="red">Vision Encoder</text>
+<text text-anchor="middle" x="265.25" y="-408.7" font-family="Segoe UI" font-size="14.00" fill="red">AltCLIP (Trainable)</text>
 </g>
 <!-- Image&#45;&gt;VisionEncoder -->
 <g id="edge12" class="edge">
@@ -69,9 +69,9 @@
 <!-- TextEncoder -->
 <g id="node4" class="node">
 <title>TextEncoder</title>
-<polygon fill="#ffe0b2" stroke="black" points="335.12,-355.5 195.38,-355.5 195.38,-308.5 335.12,-308.5 335.12,-355.5"/>
-<text text-anchor="middle" x="265.25" y="-338.2" font-family="Segoe UI" font-size="14.00">Text Encoder</text>
-<text text-anchor="middle" x="265.25" y="-318.7" font-family="Segoe UI" font-size="14.00">XLM&#45;RoBERTa&#45;Large</text>
+<polygon fill="#ffcdd2" stroke="red" points="335.12,-355.5 195.38,-355.5 195.38,-308.5 335.12,-308.5 335.12,-355.5"/>
+<text text-anchor="middle" x="265.25" y="-338.2" font-family="Segoe UI" font-size="14.00" fill="red">Text Encoder</text>
+<text text-anchor="middle" x="265.25" y="-318.7" font-family="Segoe UI" font-size="14.00" fill="red">AltCLIP (Trainable)</text>
 </g>
 <!-- Prompt&#45;&gt;TextEncoder -->
 <g id="edge13" class="edge">
@@ -82,10 +82,10 @@
 <!-- Vis_Linear -->
 <g id="node5" class="node">
 <title>Vis_Linear</title>
-<polygon fill="#ffcc80" stroke="black" points="719.25,-465.25 450.5,-465.25 450.5,-398.75 719.25,-398.75 719.25,-465.25"/>
-<text text-anchor="middle" x="584.88" y="-447.95" font-family="Segoe UI" font-size="14.00">Linear</text>
-<text text-anchor="middle" x="584.88" y="-428.45" font-family="Segoe UI" font-size="14.00">1024 &#45;&gt; 768</text>
-<text text-anchor="middle" x="584.88" y="-408.95" font-family="Segoe UI" font-size="14.00">(通过训练一个矩阵然后和1024相乘实现)</text>
+<polygon fill="#ffcdd2" stroke="red" points="719.25,-465.25 450.5,-465.25 450.5,-398.75 719.25,-398.75 719.25,-465.25"/>
+<text text-anchor="middle" x="584.88" y="-447.95" font-family="Segoe UI" font-size="14.00" fill="red">Internal Linear</text>
+<text text-anchor="middle" x="584.88" y="-428.45" font-family="Segoe UI" font-size="14.00" fill="red">1024 &#45;&gt; 768</text>
+<text text-anchor="middle" x="584.88" y="-408.95" font-family="Segoe UI" font-size="14.00" fill="red">(AltCLIP Internal Projection)</text>
 </g>
 <!-- VisionEncoder&#45;&gt;Vis_Linear -->
 <g id="edge14" class="edge">
@@ -97,10 +97,10 @@
 <!-- Txt_Linear -->
 <g id="node8" class="node">
 <title>Txt_Linear</title>
-<polygon fill="#ffcc80" stroke="black" points="719.25,-350.25 450.5,-350.25 450.5,-283.75 719.25,-283.75 719.25,-350.25"/>
-<text text-anchor="middle" x="584.88" y="-332.95" font-family="Segoe UI" font-size="14.00">Linear</text>
-<text text-anchor="middle" x="584.88" y="-313.45" font-family="Segoe UI" font-size="14.00">1024 &#45;&gt; 768</text>
-<text text-anchor="middle" x="584.88" y="-293.95" font-family="Segoe UI" font-size="14.00">(通过训练一个矩阵然后和1024相乘实现)</text>
+<polygon fill="#ffcdd2" stroke="red" points="719.25,-350.25 450.5,-350.25 450.5,-283.75 719.25,-283.75 719.25,-350.25"/>
+<text text-anchor="middle" x="584.88" y="-332.95" font-family="Segoe UI" font-size="14.00" fill="red">Internal Linear</text>
+<text text-anchor="middle" x="584.88" y="-313.45" font-family="Segoe UI" font-size="14.00" fill="red">1024 &#45;&gt; 768</text>
+<text text-anchor="middle" x="584.88" y="-293.95" font-family="Segoe UI" font-size="14.00" fill="red">(AltCLIP Internal Projection)</text>
 </g>
 <!-- TextEncoder&#45;&gt;Txt_Linear -->
 <g id="edge15" class="edge">
@@ -112,9 +112,9 @@
 <!-- Vis_LN -->
 <g id="node6" class="node">
 <title>Vis_LN</title>
-<polygon fill="#ffcc80" stroke="black" points="981,-453.5 778.25,-453.5 778.25,-406.5 981,-406.5 981,-453.5"/>
-<text text-anchor="middle" x="879.62" y="-436.2" font-family="Segoe UI" font-size="14.00">LayerNorm</text>
-<text text-anchor="middle" x="879.62" y="-416.7" font-family="Segoe UI" font-size="14.00">(作用: 归一化特征，稳定训练)</text>
+<polygon fill="#ffcdd2" stroke="red" points="981,-453.5 778.25,-453.5 778.25,-406.5 981,-406.5 981,-453.5"/>
+<text text-anchor="middle" x="879.62" y="-436.2" font-family="Segoe UI" font-size="14.00" fill="red">LayerNorm</text>
+<text text-anchor="middle" x="879.62" y="-416.7" font-family="Segoe UI" font-size="14.00" fill="red">(Trainable)</text>
 </g>
 <!-- Vis_Linear&#45;&gt;Vis_LN -->
 <g id="edge1" class="edge">
@@ -125,9 +125,9 @@
 <!-- Vis_GELU -->
 <g id="node7" class="node">
 <title>Vis_GELU</title>
-<polygon fill="#ffcc80" stroke="black" points="1335.75,-448.5 1040,-448.5 1040,-401.5 1335.75,-401.5 1335.75,-448.5"/>
-<text text-anchor="middle" x="1187.88" y="-431.2" font-family="Segoe UI" font-size="14.00">GELU</text>
-<text text-anchor="middle" x="1187.88" y="-411.7" font-family="Segoe UI" font-size="14.00">(实际上是非线性的改变对齐两个模态的结构)</text>
+<polygon fill="#ffcdd2" stroke="red" points="1335.75,-448.5 1040,-448.5 1040,-401.5 1335.75,-401.5 1335.75,-448.5"/>
+<text text-anchor="middle" x="1187.88" y="-431.2" font-family="Segoe UI" font-size="14.00" fill="red">GELU</text>
+<text text-anchor="middle" x="1187.88" y="-411.7" font-family="Segoe UI" font-size="14.00" fill="red">(Trainable Activation)</text>
 </g>
 <!-- Vis_LN&#45;&gt;Vis_GELU -->
 <g id="edge2" class="edge">
@@ -152,9 +152,9 @@
 <!-- Txt_LN -->
 <g id="node9" class="node">
 <title>Txt_LN</title>
-<polygon fill="#ffcc80" stroke="black" points="981,-346.5 778.25,-346.5 778.25,-299.5 981,-299.5 981,-346.5"/>
-<text text-anchor="middle" x="879.62" y="-329.2" font-family="Segoe UI" font-size="14.00">LayerNorm</text>
-<text text-anchor="middle" x="879.62" y="-309.7" font-family="Segoe UI" font-size="14.00">(作用: 归一化特征，稳定训练)</text>
+<polygon fill="#ffcdd2" stroke="red" points="981,-346.5 778.25,-346.5 778.25,-299.5 981,-299.5 981,-346.5"/>
+<text text-anchor="middle" x="879.62" y="-329.2" font-family="Segoe UI" font-size="14.00" fill="red">LayerNorm</text>
+<text text-anchor="middle" x="879.62" y="-309.7" font-family="Segoe UI" font-size="14.00" fill="red">(Trainable)</text>
 </g>
 <!-- Txt_Linear&#45;&gt;Txt_LN -->
 <g id="edge3" class="edge">
@@ -165,9 +165,9 @@
 <!-- Txt_GELU -->
 <g id="node10" class="node">
 <title>Txt_GELU</title>
-<polygon fill="#ffcc80" stroke="black" points="1335.75,-348.5 1040,-348.5 1040,-301.5 1335.75,-301.5 1335.75,-348.5"/>
-<text text-anchor="middle" x="1187.88" y="-331.2" font-family="Segoe UI" font-size="14.00">GELU</text>
-<text text-anchor="middle" x="1187.88" y="-311.7" font-family="Segoe UI" font-size="14.00">(实际上是非线性的改变对齐两个模态的结构)</text>
+<polygon fill="#ffcdd2" stroke="red" points="1335.75,-348.5 1040,-348.5 1040,-301.5 1335.75,-301.5 1335.75,-348.5"/>
+<text text-anchor="middle" x="1187.88" y="-331.2" font-family="Segoe UI" font-size="14.00" fill="red">GELU</text>
+<text text-anchor="middle" x="1187.88" y="-311.7" font-family="Segoe UI" font-size="14.00" fill="red">(Trainable Activation)</text>
 </g>
 <!-- Txt_LN&#45;&gt;Txt_GELU -->
 <g id="edge4" class="edge">
@@ -185,9 +185,9 @@
 <!-- Head_total_score -->
 <g id="node12" class="node">
 <title>Head_total_score</title>
-<polygon fill="#c8e6c9" stroke="black" points="1876,-709.5 1647.75,-709.5 1647.75,-662.5 1876,-662.5 1876,-709.5"/>
-<text text-anchor="middle" x="1761.88" y="-692.2" font-family="Segoe UI" font-size="14.00">Total Score Head</text>
-<text text-anchor="middle" x="1761.88" y="-672.7" font-family="Segoe UI" font-size="14.00">[Linear&#45;&gt;ReLU&#45;&gt;Dropout&#45;&gt;Linear]</text>
+<polygon fill="#ffcdd2" stroke="red" points="1876,-709.5 1647.75,-709.5 1647.75,-662.5 1876,-662.5 1876,-709.5"/>
+<text text-anchor="middle" x="1761.88" y="-692.2" font-family="Segoe UI" font-size="14.00" fill="red">Total Score Head (Trainable)</text>
+<text text-anchor="middle" x="1761.88" y="-672.7" font-family="Segoe UI" font-size="14.00">[Linear&#45;&gt;LN&#45;&gt;GELU&#45;&gt;Drop&#45;&gt;Linear]</text>
 </g>
 <!-- Concat&#45;&gt;Head_total_score -->
 <g id="edge18" class="edge">
@@ -199,9 +199,9 @@
 <!-- Head_composition -->
 <g id="node14" class="node">
 <title>Head_composition</title>
-<polygon fill="#c8e6c9" stroke="black" points="1876,-602.5 1647.75,-602.5 1647.75,-555.5 1876,-555.5 1876,-602.5"/>
-<text text-anchor="middle" x="1761.88" y="-585.2" font-family="Segoe UI" font-size="14.00">Composition Head</text>
-<text text-anchor="middle" x="1761.88" y="-565.7" font-family="Segoe UI" font-size="14.00">[Linear&#45;&gt;ReLU&#45;&gt;Dropout&#45;&gt;Linear]</text>
+<polygon fill="#ffcdd2" stroke="red" points="1876,-602.5 1647.75,-602.5 1647.75,-555.5 1876,-555.5 1876,-602.5"/>
+<text text-anchor="middle" x="1761.88" y="-585.2" font-family="Segoe UI" font-size="14.00" fill="red">Composition Head (Trainable)</text>
+<text text-anchor="middle" x="1761.88" y="-565.7" font-family="Segoe UI" font-size="14.00">[Linear&#45;&gt;LN&#45;&gt;GELU&#45;&gt;Drop&#45;&gt;Linear]</text>
 </g>
 <!-- Concat&#45;&gt;Head_composition -->
 <g id="edge19" class="edge">
@@ -213,9 +213,9 @@
 <!-- Head_color -->
 <g id="node16" class="node">
 <title>Head_color</title>
-<polygon fill="#c8e6c9" stroke="black" points="1876,-498.5 1647.75,-498.5 1647.75,-451.5 1876,-451.5 1876,-498.5"/>
-<text text-anchor="middle" x="1761.88" y="-481.2" font-family="Segoe UI" font-size="14.00">Color Head</text>
-<text text-anchor="middle" x="1761.88" y="-461.7" font-family="Segoe UI" font-size="14.00">[Linear&#45;&gt;ReLU&#45;&gt;Dropout&#45;&gt;Linear]</text>
+<polygon fill="#ffcdd2" stroke="red" points="1876,-498.5 1647.75,-498.5 1647.75,-451.5 1876,-451.5 1876,-498.5"/>
+<text text-anchor="middle" x="1761.88" y="-481.2" font-family="Segoe UI" font-size="14.00" fill="red">Color Head (Trainable)</text>
+<text text-anchor="middle" x="1761.88" y="-461.7" font-family="Segoe UI" font-size="14.00">[Linear&#45;&gt;LN&#45;&gt;GELU&#45;&gt;Drop&#45;&gt;Linear]</text>
 </g>
 <!-- Concat&#45;&gt;Head_color -->
 <g id="edge20" class="edge">
@@ -227,9 +227,9 @@
 <!-- Head_lighting -->
 <g id="node18" class="node">
 <title>Head_lighting</title>
-<polygon fill="#c8e6c9" stroke="black" points="1876,-399.5 1647.75,-399.5 1647.75,-352.5 1876,-352.5 1876,-399.5"/>
-<text text-anchor="middle" x="1761.88" y="-382.2" font-family="Segoe UI" font-size="14.00">Lighting Head</text>
-<text text-anchor="middle" x="1761.88" y="-362.7" font-family="Segoe UI" font-size="14.00">[Linear&#45;&gt;ReLU&#45;&gt;Dropout&#45;&gt;Linear]</text>
+<polygon fill="#ffcdd2" stroke="red" points="1876,-399.5 1647.75,-399.5 1647.75,-352.5 1876,-352.5 1876,-399.5"/>
+<text text-anchor="middle" x="1761.88" y="-382.2" font-family="Segoe UI" font-size="14.00" fill="red">Lighting Head (Trainable)</text>
+<text text-anchor="middle" x="1761.88" y="-362.7" font-family="Segoe UI" font-size="14.00">[Linear&#45;&gt;LN&#45;&gt;GELU&#45;&gt;Drop&#45;&gt;Linear]</text>
 </g>
 <!-- Concat&#45;&gt;Head_lighting -->
 <g id="edge21" class="edge">
@@ -241,9 +241,9 @@
 <!-- Head_subject_clarity -->
 <g id="node20" class="node">
 <title>Head_subject_clarity</title>
-<polygon fill="#c8e6c9" stroke="black" points="1876,-307.5 1647.75,-307.5 1647.75,-260.5 1876,-260.5 1876,-307.5"/>
-<text text-anchor="middle" x="1761.88" y="-290.2" font-family="Segoe UI" font-size="14.00">Subject Clarity Head</text>
-<text text-anchor="middle" x="1761.88" y="-270.7" font-family="Segoe UI" font-size="14.00">[Linear&#45;&gt;ReLU&#45;&gt;Dropout&#45;&gt;Linear]</text>
+<polygon fill="#ffcdd2" stroke="red" points="1876,-307.5 1647.75,-307.5 1647.75,-260.5 1876,-260.5 1876,-307.5"/>
+<text text-anchor="middle" x="1761.88" y="-290.2" font-family="Segoe UI" font-size="14.00" fill="red">Subject Clarity Head (Trainable)</text>
+<text text-anchor="middle" x="1761.88" y="-270.7" font-family="Segoe UI" font-size="14.00">[Linear&#45;&gt;LN&#45;&gt;GELU&#45;&gt;Drop&#45;&gt;Linear]</text>
 </g>
 <!-- Concat&#45;&gt;Head_subject_clarity -->
 <g id="edge22" class="edge">
@@ -255,9 +255,9 @@
 <!-- Head_creativity -->
 <g id="node22" class="node">
 <title>Head_creativity</title>
-<polygon fill="#c8e6c9" stroke="black" points="1876,-214.5 1647.75,-214.5 1647.75,-167.5 1876,-167.5 1876,-214.5"/>
-<text text-anchor="middle" x="1761.88" y="-197.2" font-family="Segoe UI" font-size="14.00">Creativity Head</text>
-<text text-anchor="middle" x="1761.88" y="-177.7" font-family="Segoe UI" font-size="14.00">[Linear&#45;&gt;ReLU&#45;&gt;Dropout&#45;&gt;Linear]</text>
+<polygon fill="#ffcdd2" stroke="red" points="1876,-214.5 1647.75,-214.5 1647.75,-167.5 1876,-167.5 1876,-214.5"/>
+<text text-anchor="middle" x="1761.88" y="-197.2" font-family="Segoe UI" font-size="14.00" fill="red">Creativity Head (Trainable)</text>
+<text text-anchor="middle" x="1761.88" y="-177.7" font-family="Segoe UI" font-size="14.00">[Linear&#45;&gt;LN&#45;&gt;GELU&#45;&gt;Drop&#45;&gt;Linear]</text>
 </g>
 <!-- Concat&#45;&gt;Head_creativity -->
 <g id="edge23" class="edge">
@@ -269,9 +269,9 @@
 <!-- Head_commercial_appeal -->
 <g id="node24" class="node">
 <title>Head_commercial_appeal</title>
-<polygon fill="#c8e6c9" stroke="black" points="1876,-118.5 1647.75,-118.5 1647.75,-71.5 1876,-71.5 1876,-118.5"/>
-<text text-anchor="middle" x="1761.88" y="-101.2" font-family="Segoe UI" font-size="14.00">Commercial Appeal Head</text>
-<text text-anchor="middle" x="1761.88" y="-81.7" font-family="Segoe UI" font-size="14.00">[Linear&#45;&gt;ReLU&#45;&gt;Dropout&#45;&gt;Linear]</text>
+<polygon fill="#ffcdd2" stroke="red" points="1876,-118.5 1647.75,-118.5 1647.75,-71.5 1876,-71.5 1876,-118.5"/>
+<text text-anchor="middle" x="1761.88" y="-101.2" font-family="Segoe UI" font-size="14.00" fill="red">Commercial Appeal Head (Trainable)</text>
+<text text-anchor="middle" x="1761.88" y="-81.7" font-family="Segoe UI" font-size="14.00">[Linear&#45;&gt;LN&#45;&gt;GELU&#45;&gt;Drop&#45;&gt;Linear]</text>
 </g>
 <!-- Concat&#45;&gt;Head_commercial_appeal -->
 <g id="edge24" class="edge">
