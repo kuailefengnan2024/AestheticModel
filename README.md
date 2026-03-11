@@ -1,25 +1,24 @@
-
 ### **项目：多维度审美评估模型 (AestheticModel)**
 
 #### **1. 项目目标 (Objective)**
 
-*   **核心目标:** 构建一个独立的AI模型，该模型能够模拟人类专家的多维度审美和商业判断力。
-*   **输入:** kv图片 + 客观元素描述Prompt
-*   **输出:** 结构化的、可解释的评分报告，包含总分以及多个预设维度的分项得分（如构图、色彩、风格契合度等）。
-*   **商业价值:** 赋能大规模、自动化、低成本的创意筛选、评估与优化。
+* **核心目标:** 构建一个独立的AI模型，该模型能够模拟人类专家的多维度审美和商业判断力。
+* **输入:** kv图片 + 客观元素描述Prompt
+* **输出:** 结构化的、可解释的评分报告，包含总分以及多个预设维度的分项得分（如构图、色彩、风格契合度等）。
+* **商业价值:** 赋能大规模、自动化、低成本的创意筛选、评估与优化。
 
 ---
 
 ### **2. 技术战略 (Strategy)**
 
-*   **核心范式:** **RLAIF (AI反馈强化学习)**。利用大型VLM（教师模型）的先进判断力，通过**知识蒸馏**，将其能力迁移到一个轻量、高效的专属模型（本模型）中。
-*   **训练方法:** **多任务学习 (Multi-Task Learning)**。通过一个统一的**组合排序损失函数 (Combined Ranking Loss)**，并行地训练模型在所有维度上的排序和打分能力。
-*   **数据处理策略：支持可变尺寸输入 (Data Strategy: Supporting Variable Image Sizes)**
-    *   **原则:** 为确保模型能准确评估`构图`并具备强大的泛化能力，必须处理不同长宽比的图片，避免采用会破坏构图信息的中心裁剪或拉伸。
-    *   **实现:** 采用**动态填充 (Dynamic Padding)** 与 **注意力掩码 (Attention Mask)** 的先进方案。在数据加载流程 (`core/dataset.py`) 中：
-        1.  保持图片的原始长宽比进行缩放。
-        2.  在组合批次（batching）时，将批内图片动态填充至统一尺寸。
-        3.  生成注意力掩码，引导模型在计算时**完全忽略**填充区域，只关注真实的图像内容。
+* **核心范式:** **RLAIF (AI反馈强化学习)**。利用大型VLM（教师模型）的先进判断力，通过**知识蒸馏**，将其能力迁移到一个轻量、高效的专属模型（本模型）中。
+* **训练方法:** **多任务学习 (Multi-Task Learning)**。通过一个统一的**组合排序损失函数 (Combined Ranking Loss)**，并行地训练模型在所有维度上的排序和打分能力。
+* **数据处理策略：支持可变尺寸输入 (Data Strategy: Supporting Variable Image Sizes)**
+  * **原则:** 为确保模型能准确评估 `构图`并具备强大的泛化能力，必须处理不同长宽比的图片，避免采用会破坏构图信息的中心裁剪或拉伸。
+  * **实现:** 采用**动态填充 (Dynamic Padding)** 与 **注意力掩码 (Attention Mask)** 的先进方案。在数据加载流程 (`core/dataset.py`) 中：
+    1. 保持图片的原始长宽比进行缩放。
+    2. 在组合批次（batching）时，将批内图片动态填充至统一尺寸。
+    3. 生成注意力掩码，引导模型在计算时**完全忽略**填充区域，只关注真实的图像内容。
 
 ---
 
@@ -27,26 +26,26 @@
 
 #### **Phase 1: 数据生产 (Data Engine)**
 
-*   **[ ] 1.1 VLM校准:** 设计并验证一个能引导公司VLM API稳定输出**多维度JSON评分**的“裁判Prompt”。**(这是成功的基石)**
-*   **[ ] 1.2 数据生成:** 编写脚本，自动化地生成海量的**成对偏好数据** `(Prompt, Winner, Loser)`，并附带VLM给出的完整多维度评分。
-    *   **尺寸策略 (Aspect Ratios):** 为了训练模型对不同构图的适应性，生图时应随机覆盖以下常用比例：
-        *   **Square:** 1:1
-        *   **Portrait:** 3:4, 9:16
-        *   **Landscape:** 4:3, 16:9
-        *   *(模型将通过动态Padding机制统一处理这些输入)*
+* **[ ] 1.1 VLM校准:** 设计并验证一个能引导公司VLM API稳定输出**多维度JSON评分**的“裁判Prompt”。**(这是成功的基石)**
+* **[ ] 1.2 数据生成:** 编写脚本，自动化地生成海量的**成对偏好数据** `(Prompt, Winner, Loser)`，并附带VLM给出的完整多维度评分。
+  * **尺寸策略 (Aspect Ratios):** 为了训练模型对不同构图的适应性，生图时应随机覆盖以下常用比例：
+    * **Square:** 1:1
+    * **Portrait:** 3:4, 9:16
+    * **Landscape:** 4:3, 16:9
+    * *(模型将通过动态Padding机制统一处理这些输入)*
 
 #### **Phase 2: 模型构建 (Modeling)**
 
-*   **[x] 2.1 架构定义:** 定义一个**多头输出 (Multi-Head)** 的模型。
-    *   **共享编码器 (Body):** 加载预训练的OpenCLIP (ViT-L-14) 和 XLM-RoBERTa (多语言支持)。
-    *   **独立输出头 (Heads):** 为“总分”和每一个评分维度分别创建一个独立的MLP预测头。
-*   **[ ] 2.2 损失函数:** 实现**组合排序损失**，将所有头的排序损失加权求和。
+* **[x] 2.1 架构定义:** 定义一个**多头输出 (Multi-Head)** 的模型。
+  * **共享编码器 (Body):** 加载预训练的OpenCLIP (ViT-L-14) 和 XLM-RoBERTa (多语言支持)。
+  * **独立输出头 (Heads):** 为“总分”和每一个评分维度分别创建一个独立的MLP预测头。
+* **[ ] 2.2 损失函数:** 实现**组合排序损失**，将所有头的排序损失加权求和。
 
 #### **Phase 3: 训练与评估 (Training & Evaluation)**
 
-*   **[ ] 3.1 训练流程:** 编写训练脚本，实现端到端的多任务训练循环。
-*   **[ ] 3.2 评估指标:** 核心是**准确率**——在独立的人类标注测试集上，模型判断 `Winner > Loser` 的正确率有多高。
-*   **[ ] 3.3 日志监控:** 使用`wandb`或类似工具，监控**总损失**和**各维度子损失**的收敛情况。
+* **[ ] 3.1 训练流程:** 编写训练脚本，实现端到端的多任务训练循环。
+* **[ ] 3.2 评估指标:** 核心是**准确率**——在独立的人类标注测试集上，模型判断 `Winner > Loser` 的正确率有多高。
+* **[ ] 3.3 日志监控:** 使用 `wandb`或类似工具，监控**总损失**和**各维度子损失**的收敛情况。
 
 ---
 
@@ -110,86 +109,95 @@ api/
 ### **6. 核心Q&A与设计哲学 (Core Design Philosophy)**
 
 #### **Q1: 什么是回归任务 (Regression Task)?**
-*   **定义**: 让 AI 预测一个**连续数值**的任务（例如：预测明天的气温是 25.3度）。
-*   **对比**: 分类任务是预测类别（猫 vs 狗），排序任务是预测顺序（A > B）。
-*   **应用**: 在本项目中，如果让模型直接输出“这张图是 8.5 分”，这就是回归。但我们选择不这样做。
+
+* **定义**: 让 AI 预测一个**连续数值**的任务（例如：预测明天的气温是 25.3度）。
+* **对比**: 分类任务是预测类别（猫 vs 狗），排序任务是预测顺序（A > B）。
+* **应用**: 在本项目中，如果让模型直接输出“这张图是 8.5 分”，这就是回归。但我们选择不这样做。
 
 #### **Q2: 为什么要用 Winner vs Loser (对比学习) 而不是直接训练打分 (回归)?**
-*   **Ground Truth 不可靠**: 人类专家对“8分”的主观定义差异很大（有人手松，有人手紧），导致绝对分数充满噪声，模型难以收敛。
-*   **相对关系更鲁棒**: 虽然专家打分不同，但他们通常都能一致认同“图A 比 图B 好”。利用这种相对的偏好（Ranking）进行训练，模型能学到更本质的审美特征。
-*   **数据更准**: VLM（如 GPT-4o, Gemini）在判断两张图谁好谁坏时，比直接给一张图打分要准确得多。
+
+* **Ground Truth 不可靠**: 人类专家对“8分”的主观定义差异很大（有人手松，有人手紧），导致绝对分数充满噪声，模型难以收敛。
+* **相对关系更鲁棒**: 虽然专家打分不同，但他们通常都能一致认同“图A 比 图B 好”。利用这种相对的偏好（Ranking）进行训练，模型能学到更本质的审美特征。
+* **数据更准**: VLM（如 GPT-4o, Gemini）在判断两张图谁好谁坏时，比直接给一张图打分要准确得多。
 
 #### **Q3: 模型的输入输出是什么？（训练 vs 推理）**
-*   **核心机制：孪生网络 (Siamese Network)**
-    虽然训练数据是成对的，但模型本身是一个**“单图打分器”**。训练时我们将同一个模型复用两次（分别计算 A 和 B 的分数），利用 Loss 函数比较两者差异来更新权重。
-*   **训练阶段 (Training)**:
-    *   **逻辑输入**: 成对图片 `(Image_A, Image_B)` + `Prompt`。
-    *   **过程**: $Score_A = Model(A)$, $Score_B = Model(B)$ -> 计算 $Loss(Score_A, Score_B, Label)$。
-*   **推理阶段 (Inference)**:
-    *   **物理输入**: 单张图片 `(Image)` + `Prompt`。
-*   **输出**: 一个字典，包含所有维度的**Logits (相对分数)**。
-    *   `e.g., {'total_score': 2.1, 'composition': 0.5, ...}`
-    *   **注意**: 输出的分数是相对值（Logits），数值越大代表质量越高，可用于排序或归一化映射到 0-10 分。
+
+* **核心机制：孪生网络 (Siamese Network)**
+  虽然训练数据是成对的，但模型本身是一个**“单图打分器”**。训练时我们将同一个模型复用两次（分别计算 A 和 B 的分数），利用 Loss 函数比较两者差异来更新权重。
+* **训练阶段 (Training)**:
+  * **逻辑输入**: 成对图片 `(Image_A, Image_B)` + `Prompt`。
+  * **过程**: $Score_A = Model(A)$, $Score_B = Model(B)$ -> 计算 $Loss(Score_A, Score_B, Label)$。
+* **推理阶段 (Inference)**:
+  * **物理输入**: 单张图片 `(Image)` + `Prompt`。
+* **输出**: 一个字典，包含所有维度的**Logits (相对分数)**。
+  * `e.g., {'total_score': 2.1, 'composition': 0.5, ...}`
+  * **注意**: 输出的分数是相对值（Logits），数值越大代表质量越高，可用于排序或归一化映射到 0-10 分。
 
 #### **Q4: 为什么 MLP 只有 1-2 层？能承担复杂的审美评估吗?**
-*   **站在巨人的肩膀上**: 本模型的**核心特征提取能力**来自于强大的预训练模型 `OpenCLIP (ViT-L-14)` 和 `XLM-RoBERTa`。
-*   **CLIP 已经“懂”了**: CLIP 已经在 4 亿对图文数据上见过各种构图、色彩和风格，它的输出向量（Embeddings）已经包含了高度浓缩的审美信息。
-*   **MLP 只是翻译**: MLP 不需要从头学习“什么是美”，它只需要学习**如何将 CLIP 提取好的特征映射到我们的评分标准上**。
-*   **微调的魔力**: 训练时我们会**解冻** CLIP 的部分层进行微调，让它变得更适应我们的特定任务，大部分复杂的非线性变换是在 Transformer 层完成的。
+
+* **站在巨人的肩膀上**: 本模型的**核心特征提取能力**来自于强大的预训练模型 `OpenCLIP (ViT-L-14)` 和 `XLM-RoBERTa`。
+* **CLIP 已经“懂”了**: CLIP 已经在 4 亿对图文数据上见过各种构图、色彩和风格，它的输出向量（Embeddings）已经包含了高度浓缩的审美信息。
+* **MLP 只是翻译**: MLP 不需要从头学习“什么是美”，它只需要学习**如何将 CLIP 提取好的特征映射到我们的评分标准上**。
+* **微调的魔力**: 训练时我们会**解冻** CLIP 的部分层进行微调，让它变得更适应我们的特定任务，大部分复杂的非线性变换是在 Transformer 层完成的。
 
 #### **Q5: MLP 头的具体形状结构是怎样的?**
-*   这是一个经典的 **"Bottleneck" (瓶颈)** 结构，负责将高维特征压缩为单一的评分。 
-*   **结构图解**:
-    ```text
-    [ Input: 1024 ]  <-- 融合特征 (CLIP 512 + RoBERTa 512)
-          |
-    [ Hidden: 512 ]  <-- 隐藏层 (Linear + ReLU + Dropout)
-          |
-    [ Output: 1 ]    <-- 最终评分 (Scalar Logits)
-    ```
-*   **数学表达**: $Score = W_2 \cdot \text{ReLU}(W_1 \cdot x + b_1) + b_2$
+
+* 这是一个经典的 **"Bottleneck" (瓶颈)** 结构，负责将高维特征压缩为单一的评分。
+* **结构图解**:
+  ```text
+  [ Input: 1024 ]  <-- 融合特征 (CLIP 512 + RoBERTa 512)
+        |
+  [ Hidden: 512 ]  <-- 隐藏层 (Linear + ReLU + Dropout)
+        |
+  [ Output: 1 ]    <-- 最终评分 (Scalar Logits)
+  ```
+* **数学表达**: $Score = W_2 \cdot \text{ReLU}(W_1 \cdot x + b_1) + b_2$
 
 #### **Q6: 动态尺寸与 Mask 处理的技术实现 (Dynamic Size & Masking)**
 
 为了让模型能够“看懂”任意尺寸的图片，我们在数据预处理阶段（Pre-processing）执行以下标准逻辑：
 
-1.  **离线预缩放 (Offline Pre-resize)**: 
-    *   将生成的原始大图 (1K/2K) 统一缩小至长边 512px，解决训练 IO 瓶颈。
-2.  **在线动态填充 (Online Dynamic Padding)**:
-    *   **保持比例缩放**: 读取 512px 图片，保持长宽比缩放至模型输入尺寸 (如 224)。
-    *   **黑边填充**: 将缩放后的图片贴在 $224 \times 224$ 的黑色画布上（左上角或居中）。
-    *   **生成 Mask**: 创建 Attention Mask (1=图片, 0=黑边)，强制 Vision Encoder 忽略黑边，从而在不破坏构图的前提下支持任意长宽比。
+1. **离线预缩放 (Offline Pre-resize)**:
+   * 将生成的原始大图 (1K/2K) 统一缩小至长边 512px，解决训练 IO 瓶颈。
+2. **在线动态填充 (Online Dynamic Padding)**:
+   * **保持比例缩放**: 读取 512px 图片，保持长宽比缩放至模型输入尺寸 (如 224)。
+   * **黑边填充**: 将缩放后的图片贴在 $224 \times 224$ 的黑色画布上（左上角或居中）。
+   * **生成 Mask**: 创建 Attention Mask (1=图片, 0=黑边)，强制 Vision Encoder 忽略黑边，从而在不破坏构图的前提下支持任意长宽比。
 
 #### **Q7: 为什么要微调 (Fine-tune) CLIP 而不是冻结它?**
-*   **冻结 (Linear Probe)**: 只能利用 CLIP 的**通用语义特征**（识别“猫”）。
-*   **微调 (Fine-tuning)**: 能进行**特征重塑 (Feature Realignment)**。
-    *   通过梯度更新，改变 CLIP 底层的 Attention 机制，让它从关注“语义类别”转向关注“审美特征”（光影、构图、氛围）。
-    *   虽然 CLIP 看过 4 亿张图，但它没学过“什么是美”。微调就像送它去“美院进修”。
-*   **数据要求**: 2万对高质量数据 + 低学习率 (1e-6) 足以支撑微调。
+
+* **冻结 (Linear Probe)**: 只能利用 CLIP 的**通用语义特征**（识别“猫”）。
+* **微调 (Fine-tuning)**: 能进行**特征重塑 (Feature Realignment)**。
+  * 通过梯度更新，改变 CLIP 底层的 Attention 机制，让它从关注“语义类别”转向关注“审美特征”（光影、构图、氛围）。
+  * 虽然 CLIP 看过 4 亿张图，但它没学过“什么是美”。微调就像送它去“美院进修”。
+* **数据要求**: 2万对高质量数据 + 低学习率 (1e-6) 足以支撑微调。
 
 #### **Q8: CLIP 部分包含文本模型吗？是 XLM-RoBERTa 吗?**
-*   **包含**: CLIP 本质是双塔结构 (Vision Tower + Text Tower)。
-*   **版本区别**:
-    *   **OpenAI CLIP**: 使用 GPT-style Transformer (仅英文)。
-    *   **CN-CLIP / AltCLIP**: 我们目前使用的工业级方案。Vision Tower 是 ViT，Text Tower 替换为了 **XLM-RoBERTa (AltCLIP)** 或 Chinese RoBERTa。
-    *   **优势**: 完美支持中文及中英混合 Prompt，这对 Text Alignment 维度至关重要。
+
+* **包含**: CLIP 本质是双塔结构 (Vision Tower + Text Tower)。
+* **版本区别**:
+  * **OpenAI CLIP**: 使用 GPT-style Transformer (仅英文)。
+  * **CN-CLIP / AltCLIP**: 我们目前使用的工业级方案。Vision Tower 是 ViT，Text Tower 替换为了 **XLM-RoBERTa (AltCLIP)** 或 Chinese RoBERTa。
+  * **优势**: 完美支持中文及中英混合 Prompt，这对 Text Alignment 维度至关重要。
 
 #### **Q9: 模型的最终交付结构**
 
-**“模型”不仅仅是权重，而是“预处理逻辑 + 权重”的整体。** 
+**“模型”不仅仅是权重，而是“预处理逻辑 + 权重”的整体。**
 
-*   **Hugging Face 风格封装（标准方案）**:
-    *   `config.json`: 模型结构参数。
-    *   `pytorch_model.bin`: 神经网络权重。
-    *   `preprocessor_config.json`: 定义上述预处理规则（如 `do_pad=True`）。
-    *   `processing_custom.py`: 包含上述 1-3 步逻辑的 Python 代码。
-*   **用户使用体验**:
-        ```python
-    # 用户只需两行代码，底层会自动下载权重并执行 processing_custom.py 中的 Mask 逻辑
-    processor = AutoImageProcessor.from_pretrained("YourRepo/AestheticModel", trust_remote_code=True)
-    inputs = processor(images=my_image, return_tensors="pt") 
-    # inputs 自动包含 'pixel_values' 和 'attention_mask'
-    ```
+* **Hugging Face 风格封装（标准方案）**:
+  * `config.json`: 模型结构参数。
+  * `pytorch_model.bin`: 神经网络权重。
+  * `preprocessor_config.json`: 定义上述预处理规则（如 `do_pad=True`）。
+  * `processing_custom.py`: 包含上述 1-3 步逻辑的 Python 代码。
+* **用户使用体验**:
+  ```python# 用户只需两行代码，底层会自动下载权重并执行 processing_custom.py 中的 Mask 逻辑
+
+  processor = AutoImageProcessor.from_pretrained("YourRepo/AestheticModel", trust_remote_code=True)
+  inputs = processor(images=my_image, return_tensors="pt")# inputs 自动包含 'pixel_values' 和 'attention_mask'
+
+  ```
+
+  ```
 
 ### **7. 数据集样例 (Dataset Sample)**
 
@@ -205,7 +213,7 @@ api/
   // 注意：这里隐含了 winner 的 total 分数一定 > loser 的 total 分数
   "scores": {
     "total":       {"winner": 8.5, "loser": 6.0}, 
-    
+  
     // 但是在子维度上，Loser 依然可以逆袭 (Feature Decoupling)
     "composition": {"winner": 9.0, "loser": 5.0}, 
     "color":       {"winner": 7.0, "loser": 8.0}  // <--- 看这里，Loser 色彩更好
