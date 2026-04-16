@@ -1,0 +1,149 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" style="background-color: #f8f9fa; font-family: sans-serif;">
+  <defs>
+    <style>
+      .title { font-size: 20px; font-weight: bold; fill: #333; }
+      .subtitle { font-size: 14px; fill: #666; }
+      .box { rx: 8; ry: 8; stroke-width: 2; }
+      .text-bold { font-weight: bold; fill: #fff; font-size: 14px; text-anchor: middle; }
+      .text-sm { fill: #fff; font-size: 12px; text-anchor: middle; }
+      .line { stroke: #666; stroke-width: 2; fill: none; }
+      .arrow { fill: #666; }
+    </style>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" class="arrow" />
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="500" y="40" text-anchor="middle" class="title">Model Architecture &amp; Parameters Comparison</text>
+  <text x="500" y="60" text-anchor="middle" class="subtitle">UniPercept vs OpenCLIP ViT-H vs Qwen-VL</text>
+
+  <!-- Model 1: UniPercept -->
+  <g transform="translate(50, 100)">
+    <rect width="260" height="450" class="box" fill="#e3f2fd" stroke="#adb5bd" />
+    <text x="130" y="30" text-anchor="middle" class="title" fill="#0d6efd">UniPercept</text>
+    <text x="130" y="50" text-anchor="middle" class="subtitle">Params: ~7B - 13B (MLLM based)</text>
+
+    <!-- UniPercept Architecture -->
+    <rect x="20" y="80" width="100" height="40" class="box" fill="#0d6efd" stroke="#0a58ca" />
+    <text x="70" y="105" class="text-bold">Image</text>
+
+    <rect x="140" y="80" width="100" height="40" class="box" fill="#fd7e14" stroke="#0a58ca" />
+    <text x="190" y="105" class="text-bold">Text Prompt</text>
+    
+    <path d="M 70 120 L 70 140" class="line" marker-end="url(#arrowhead)"/>
+    <path d="M 190 120 L 190 260" class="line" marker-end="url(#arrowhead)"/>
+    
+    <rect x="20" y="140" width="100" height="40" class="box" fill="#0dcaf0" stroke="#0a58ca" />
+    <text x="70" y="158" class="text-bold">Vision Encoder</text>
+    <text x="70" y="172" class="text-sm">(CLIP ViT)</text>
+
+    <path d="M 70 180 L 70 200" class="line" marker-end="url(#arrowhead)"/>
+
+    <rect x="20" y="200" width="100" height="40" class="box" fill="#20c997" stroke="#0a58ca" />
+    <text x="70" y="218" class="text-bold">Domain-Adapt</text>
+    <text x="70" y="232" class="text-sm">Pre-Training</text>
+
+    <path d="M 70 240 L 130 260" class="line" marker-end="url(#arrowhead)"/>
+
+    <rect x="40" y="260" width="180" height="40" class="box" fill="#6f42c1" stroke="#0a58ca" />
+    <text x="130" y="278" class="text-bold">LLM Backbone</text>
+    <text x="130" y="292" class="text-sm">+ Task-Aligned RL</text>
+
+    <path d="M 130 300 L 130 320" class="line" marker-end="url(#arrowhead)"/>
+
+    <!-- OUTPUT -->
+    <rect x="20" y="320" width="220" height="50" class="box" fill="#0d6efd" stroke="#0a58ca" />
+    <text x="130" y="340" class="text-bold">Output: Text Response</text>
+    <text x="130" y="358" class="text-sm">(e.g., Score: 85, Reasoning: "Good light")</text>
+
+    <text x="130" y="390" class="subtitle" text-anchor="middle">Role: Perceptual Image Understanding</text>
+    <text x="130" y="410" class="subtitle" text-anchor="middle">(Generative AI / MLLM)</text>
+  </g>
+
+  <!-- Model 2: OpenCLIP ViT-H -->
+  <g transform="translate(350, 100)">
+    <rect width="280" height="450" class="box" fill="#f8d7da" stroke="#adb5bd" />
+    <text x="140" y="30" text-anchor="middle" class="title" fill="#dc3545">OpenCLIP ViT-H</text>
+    <text x="140" y="50" text-anchor="middle" class="subtitle">Params: ~1B (ViT: 630M, Txt: 350M)</text>
+
+    <!-- Dual Encoder Architecture -->
+    <rect x="20" y="80" width="110" height="40" class="box" fill="#dc3545" stroke="#b02a37" />
+    <text x="75" y="105" class="text-bold">Image</text>
+
+    <rect x="150" y="80" width="110" height="40" class="box" fill="#fd7e14" stroke="#b02a37" />
+    <text x="205" y="105" class="text-bold">Text Prompt</text>
+
+    <path d="M 75 120 L 75 150" class="line" marker-end="url(#arrowhead)"/>
+    <path d="M 205 120 L 205 150" class="line" marker-end="url(#arrowhead)"/>
+
+    <rect x="20" y="150" width="110" height="50" class="box" fill="#dc3545" stroke="#b02a37" />
+    <text x="75" y="170" class="text-bold">ViT-H/14</text>
+    <text x="75" y="188" class="text-sm">(Vision Encoder)</text>
+
+    <rect x="150" y="150" width="110" height="50" class="box" fill="#fd7e14" stroke="#b02a37" />
+    <text x="205" y="170" class="text-bold">Transformer</text>
+    <text x="205" y="188" class="text-sm">(Text Encoder)</text>
+
+    <path d="M 75 200 L 140 230" class="line" marker-end="url(#arrowhead)"/>
+    <path d="M 205 200 L 140 230" class="line" marker-end="url(#arrowhead)"/>
+
+    <rect x="40" y="230" width="200" height="40" class="box" fill="#6f42c1" stroke="#b02a37" />
+    <text x="140" y="248" class="text-bold">Contrastive Alignment</text>
+    <text x="140" y="262" class="text-sm">(Cosine Similarity)</text>
+
+    <path d="M 140 270 L 140 320" class="line" marker-end="url(#arrowhead)"/>
+
+    <!-- OUTPUT -->
+    <rect x="20" y="320" width="240" height="50" class="box" fill="#dc3545" stroke="#b02a37" />
+    <text x="140" y="340" class="text-bold">Output: Similarity Score</text>
+    <text x="140" y="358" class="text-sm">(e.g., 0.85, 1024-dim Embeddings)</text>
+
+    <text x="140" y="390" class="subtitle" text-anchor="middle">Role: Image-Text Matching &amp;</text>
+    <text x="140" y="410" class="subtitle" text-anchor="middle">Feature Extraction</text>
+  </g>
+
+  <!-- Model 3: Qwen-VL -->
+  <g transform="translate(670, 100)">
+    <rect width="280" height="450" class="box" fill="#d1e7dd" stroke="#adb5bd" />
+    <text x="140" y="30" text-anchor="middle" class="title" fill="#198754">Qwen-VL</text>
+    <text x="140" y="50" text-anchor="middle" class="subtitle">Params: ~9.6B (LLM 7B + ViT 1.9B)</text>
+
+    <!-- MLLM Architecture -->
+    <rect x="20" y="80" width="110" height="40" class="box" fill="#198754" stroke="#146c43" />
+    <text x="75" y="105" class="text-bold">Image</text>
+
+    <rect x="150" y="80" width="110" height="40" class="box" fill="#fd7e14" stroke="#146c43" />
+    <text x="205" y="105" class="text-bold">Text Prompt</text>
+
+    <path d="M 75 120 L 75 140" class="line" marker-end="url(#arrowhead)"/>
+    <path d="M 205 120 L 140 260" class="line" marker-end="url(#arrowhead)"/>
+
+    <rect x="20" y="140" width="110" height="40" class="box" fill="#198754" stroke="#146c43" />
+    <text x="75" y="158" class="text-bold">ViT-bigG</text>
+    <text x="75" y="172" class="text-sm">(Vision Encoder)</text>
+
+    <path d="M 75 180 L 75 200" class="line" marker-end="url(#arrowhead)"/>
+
+    <rect x="20" y="200" width="110" height="40" class="box" fill="#20c997" stroke="#146c43" />
+    <text x="75" y="218" class="text-bold">VL Adapter</text>
+    <text x="75" y="232" class="text-sm">(Cross-Attention)</text>
+
+    <path d="M 75 240 L 140 260" class="line" marker-end="url(#arrowhead)"/>
+
+    <rect x="40" y="260" width="200" height="40" class="box" fill="#6f42c1" stroke="#146c43" />
+    <text x="140" y="278" class="text-bold">Qwen-7B LLM</text>
+    <text x="140" y="292" class="text-sm">(Generates Text Output)</text>
+
+    <path d="M 140 300 L 140 320" class="line" marker-end="url(#arrowhead)"/>
+
+    <!-- OUTPUT -->
+    <rect x="20" y="320" width="240" height="50" class="box" fill="#198754" stroke="#146c43" />
+    <text x="140" y="340" class="text-bold">Output: Text Response</text>
+    <text x="140" y="358" class="text-sm">(e.g., Answers, Captions, Code)</text>
+
+    <text x="140" y="390" class="subtitle" text-anchor="middle">Role: Large Multimodal Model</text>
+    <text x="140" y="410" class="subtitle" text-anchor="middle">(Deep reasoning &amp; VQA)</text>
+  </g>
+
+</svg>

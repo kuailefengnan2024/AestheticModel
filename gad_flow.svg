@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 880">
+    <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8" />
+        </marker>
+        <marker id="arrow-blue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#3b82f6" />
+        </marker>
+        <style>
+            .box { fill: #ffffff; stroke: #cbd5e1; stroke-width: 1.5; rx: 6; }
+            .box-blue { fill: #eff6ff; stroke: #bfdbfe; stroke-width: 1.5; rx: 6; }
+            .box-pink { fill: #fdf2f8; stroke: #fbcfe8; stroke-width: 1.5; rx: 6; }
+            .box-green { fill: #f0fdf4; stroke: #bbf7d0; stroke-width: 1.5; rx: 6; }
+            .box-red { fill: #fef2f2; stroke: #fecaca; stroke-width: 1.5; rx: 6; }
+            .box-dash { fill: #ffffff; stroke: #94a3b8; stroke-width: 1.5; stroke-dasharray: 4,4; rx: 6; }
+            .title { font-family: system-ui, -apple-system, sans-serif; font-size: 15px; font-weight: 600; fill: #1e293b; text-anchor: middle; }
+            .sub { font-family: system-ui, -apple-system, sans-serif; font-size: 12px; fill: #64748b; text-anchor: middle; }
+            .desc { font-family: system-ui, -apple-system, sans-serif; font-size: 13px; font-weight: bold; fill: #c2410c; text-anchor: middle; }
+            .lbl { font-family: system-ui, -apple-system, sans-serif; font-size: 12px; fill: #475569; font-weight: 500; text-anchor: middle;}
+            .lbl-blue { font-family: system-ui, -apple-system, sans-serif; font-size: 12px; fill: #3b82f6; font-weight: 600; text-anchor: middle;}
+            .lbl-bg { fill: #ffffff; fill-opacity: 0.9; }
+            .path { stroke: #94a3b8; stroke-width: 2; fill: none; marker-end: url(#arrow); stroke-linejoin: round; }
+            .path-update { stroke: #3b82f6; stroke-width: 2; fill: none; stroke-dasharray: 5,5; marker-end: url(#arrow-blue); stroke-linejoin: round; }
+        </style>
+    </defs>
+
+    <rect width="100%" height="100%" fill="#fcfcfc" />
+
+    <!-- Level 1: Data -->
+    <rect x="320" y="40" width="220" height="120" class="box" />
+    <text x="430" y="65" class="title">提示词与客观答案</text>
+    <text x="430" y="85" class="sub">LMSYS 提问 + Ground Truth</text>
+    <text x="430" y="110" class="desc">例: 题目 "2x+1=5" </text>
+    <text x="430" y="130" class="sub" style="font-size: 11px;">(附客观答案: 2)</text>
+
+    <rect x="600" y="40" width="220" height="120" class="box" />
+    <text x="710" y="65" class="title">教师数据 (Teacher Data)</text>
+    <text x="710" y="85" class="sub">GPT-5 真实回复</text>
+    <text x="710" y="110" class="desc">例: GPT-5 写的满分长篇解答</text>
+    <text x="710" y="130" class="sub" style="font-size: 11px;">"首先方程两边减1...因此答案是 \boxed{2}"</text>
+
+    <!-- Level 2: Models -->
+    <rect x="40" y="180" width="220" height="90" class="box-blue" />
+    <text x="150" y="205" class="title">参考模型 (Ref Model)</text>
+    <text x="150" y="225" class="sub">未训练的初始模型</text>
+    <text x="150" y="250" class="desc">例: 它原本会回答 "x=2"</text>
+
+    <rect x="320" y="180" width="220" height="90" class="box-blue" />
+    <text x="430" y="205" class="title">策略模型 (Actor)</text>
+    <text x="430" y="225" class="sub">基于 vLLM 引擎</text>
+    <text x="430" y="250" class="desc">例: 正在努力学写长篇解答的小模型</text>
+
+    <!-- Level 3: Generated Output -->
+    <rect x="320" y="320" width="220" height="90" class="box-dash" />
+    <text x="430" y="345" class="title">生成回复 (Fake Response)</text>
+    <text x="430" y="365" class="sub">策略模型的输出</text>
+    <text x="430" y="390" class="desc">例: "由于2x=4，所以是2"</text>
+
+    <!-- Level 4: Evaluators -->
+    <rect x="320" y="460" width="220" height="90" class="box-pink" />
+    <text x="430" y="485" class="title">辅助奖励 (DeepScaler)</text>
+    <text x="430" y="505" class="sub">规则与数学验证</text>
+    <text x="430" y="530" class="desc">例: 只查小模型最后算出来的对不对</text>
+
+    <rect x="600" y="460" width="220" height="90" class="box-pink" />
+    <text x="710" y="485" class="title">判别器 (Critic)</text>
+    <text x="710" y="505" class="sub">奖励模型 (Reward Model)</text>
+    <text x="710" y="530" class="desc">例: 查小模型的解题语气像不像GPT-5</text>
+
+    <!-- Level 5: Rewards & Penalties -->
+    <rect x="40" y="600" width="220" height="90" class="box-red" />
+    <text x="150" y="625" class="title">KL 散度惩罚 (-)</text>
+    <text x="150" y="645" class="sub">防止过度优化</text>
+    <text x="150" y="670" class="desc">例: 惩罚它为了装腔作势而乱改答案</text>
+
+    <rect x="600" y="600" width="220" height="90" class="box-green" />
+    <text x="710" y="625" class="title">总奖励 (Total Reward)</text>
+    <text x="710" y="645" class="sub">对抗奖励 + 辅助奖励</text>
+    <text x="710" y="670" class="desc">例: 算对了 + 语气像 GPT-5 = 高分</text>
+
+    <!-- Level 6: Optimizer -->
+    <rect x="320" y="740" width="220" height="90" class="box-green" />
+    <text x="430" y="765" class="title">RL 优化器 (Optimizer)</text>
+    <text x="430" y="785" class="sub">GRPO / PPO 算法</text>
+    <text x="430" y="810" class="desc">例: 更新权重，让它下次写得更像满分解答</text>
+
+    <!-- Routing Paths -->
+    <path class="path" d="M 430 130 V 180" />
+    <path class="path" d="M 320 85 H 150 V 180" />
+    
+    <path class="path" d="M 710 130 V 460" />
+
+    <path class="path" d="M 430 270 V 320" />
+
+    <path class="path" d="M 430 410 V 460" />
+    <path class="path" d="M 540 365 H 650 V 460" />
+
+    <path class="path" d="M 150 270 V 600" />
+    <path class="path" d="M 350 270 V 295 H 290 V 570 H 180 V 600" />
+
+    <path class="path" d="M 430 550 V 575 H 650 V 600" />
+    <path class="path" d="M 710 550 V 600" />
+
+    <path class="path" d="M 150 690 V 715 H 400 V 740" />
+    <path class="path" d="M 710 690 V 715 H 460 V 740" />
+
+    <path class="path-update" d="M 320 785 H 15 V 225 H 320" />
+
+    <!-- Path Labels -->
+    <rect x="660" y="280" width="100" height="20" rx="4" class="lbl-bg"/>
+    <text x="710" y="294" class="lbl">对比标准答案</text>
+
+    <rect x="545" y="355" width="100" height="20" rx="4" class="lbl-bg"/>
+    <text x="595" y="369" class="lbl">提交模拟作业</text>
+
+    <rect x="35" y="490" width="120" height="20" rx="4" class="lbl-bg"/>
+    <text x="95" y="504" class="lbl-blue">根据得分进化模型</text>
+
+</svg>
