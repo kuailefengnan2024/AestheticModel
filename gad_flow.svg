@@ -42,12 +42,12 @@
     <!-- Level 2: Models -->
     <rect x="40" y="180" width="220" height="90" class="box-blue" />
     <text x="150" y="205" class="title">参考模型 (Ref Model)</text>
-    <text x="150" y="225" class="sub">未训练的初始模型</text>
+    <text x="150" y="225" class="sub">预热后的 Qwen2.5-7B (冻结)</text>
     <text x="150" y="250" class="desc">例: 它原本会回答 "x=2"</text>
 
     <rect x="320" y="180" width="220" height="90" class="box-blue" />
     <text x="430" y="205" class="title">策略模型 (Actor)</text>
-    <text x="430" y="225" class="sub">基于 vLLM 引擎</text>
+    <text x="430" y="225" class="sub">预热后的 Qwen2.5-7B (vLLM)</text>
     <text x="430" y="250" class="desc">例: 正在努力学写长篇解答的小模型</text>
 
     <!-- Level 3: Generated Output -->
